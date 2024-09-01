@@ -147,7 +147,7 @@ export function FixedBackgroundWeChatCoverCard() {
     setIsEditing(true)
   }
 
-  const handleTextChange = (e) => {
+  const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setText(e.target.value)
   }
 
@@ -155,7 +155,7 @@ export function FixedBackgroundWeChatCoverCard() {
     setIsEditing(false)
   }
 
-  const handleKeyDown = (e) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       setIsEditing(false)
     }
@@ -217,7 +217,7 @@ export function FixedBackgroundWeChatCoverCard() {
           Download as PNG
         </motion.button>
         <motion.button 
-          onClick={() => setColorScheme((prev) => (prev + 1) % colorSchemes.length)}
+          onClick={() => setColorScheme(Math.floor(Math.random() * colorSchemes.length))}
           className="flex items-center gap-2 px-6 py-3 mt-4 bg-white text-black rounded-md hover:bg-opacity-90 transition-colors"
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
