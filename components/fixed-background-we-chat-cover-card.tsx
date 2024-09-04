@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Download } from 'lucide-react'
+import { Download, Plus, Minus } from 'lucide-react'
 import html2canvas from 'html2canvas'
 
 export function FixedBackgroundWeChatCoverCard() {
@@ -11,6 +11,7 @@ export function FixedBackgroundWeChatCoverCard() {
   const cardRef = useRef(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const [colorScheme, setColorScheme] = useState(0)
+  const [fontSize, setFontSize] = useState(48)
 
   const colorSchemes = [
     'linear-gradient(45deg, #ff9a9e, #fad0c4, #a1c4fd, #c2e9fb)',
@@ -161,6 +162,14 @@ export function FixedBackgroundWeChatCoverCard() {
     }
   }
 
+  const increaseFontSize = () => {
+    setFontSize(prev => Math.min(prev + 4, 96))
+  }
+
+  const decreaseFontSize = () => {
+    setFontSize(prev => Math.max(prev - 4, 16))
+  }
+
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-gradient-to-r from-pink-300 via-purple-300 to-indigo-400">
       <div className="absolute inset-0 bg-gradient-animation"></div>
@@ -181,7 +190,8 @@ export function FixedBackgroundWeChatCoverCard() {
                 onChange={handleTextChange}
                 onBlur={handleTextBlur}
                 onKeyDown={handleKeyDown}
-                className="w-full text-5xl font-bold text-center bg-transparent text-white border-none outline-none"
+                style={{ fontSize: `${fontSize}px` }}
+                className="w-full font-bold text-center bg-transparent text-white border-none outline-none"
               />
             ) : (
               <motion.div 
@@ -194,7 +204,8 @@ export function FixedBackgroundWeChatCoverCard() {
                 {text.split('').map((char, index) => (
                   <motion.span
                     key={index}
-                    className="text-5xl font-bold text-white"
+                    style={{ fontSize: `${fontSize}px` }}
+                    className="font-bold text-white"
                     initial={{ opacity: 0, filter: "blur(5px)" }}
                     animate={{ opacity: 1, filter: "blur(0px)" }}
                     transition={{ duration: 0.5, delay: index * 0.05 }}
@@ -206,25 +217,48 @@ export function FixedBackgroundWeChatCoverCard() {
             )}
           </div>
         </motion.div>
-        <motion.button 
-          onClick={downloadAsPng}
-          className="flex items-center gap-2 px-6 py-3 mt-8 bg-white text-black rounded-md hover:bg-opacity-90 transition-colors"
+        
+        {/* New container for the three components */}
+        <motion.div 
+          className="flex items-center justify-between w-[1128px] mt-8"
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.5, duration: 0.5 }}
         >
-          <Download size={20} />
-          Download as PNG
-        </motion.button>
-        <motion.button 
-          onClick={() => setColorScheme(Math.floor(Math.random() * colorSchemes.length))}
-          className="flex items-center gap-2 px-6 py-3 mt-4 bg-white text-black rounded-md hover:bg-opacity-90 transition-colors"
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.6, duration: 0.5 }}
-        >
-          Change Color Scheme
-        </motion.button>
+          {/* Download button */}
+          <motion.button 
+            onClick={downloadAsPng}
+            className="flex items-center gap-2 px-6 py-3 bg-white text-black rounded-md hover:bg-opacity-90 transition-colors"
+          >
+            <Download size={20} />
+            Download as PNG
+          </motion.button>
+
+          {/* Font size adjustment */}
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={decreaseFontSize}
+              className="p-2 bg-white text-black rounded-md hover:bg-opacity-90 transition-colors"
+            >
+              <Minus size={20} />
+            </button>
+            <span className="text-white">Font Size: {fontSize}px</span>
+            <button 
+              onClick={increaseFontSize}
+              className="p-2 bg-white text-black rounded-md hover:bg-opacity-90 transition-colors"
+            >
+              <Plus size={20} />
+            </button>
+          </div>
+
+          {/* Change Color Scheme button */}
+          <motion.button 
+            onClick={() => setColorScheme(Math.floor(Math.random() * colorSchemes.length))}
+            className="flex items-center gap-2 px-6 py-3 bg-white text-black rounded-md hover:bg-opacity-90 transition-colors"
+          >
+            Change Color Scheme
+          </motion.button>
+        </motion.div>
       </div>
       <style jsx>{`
         .bg-gradient-animation {
