@@ -15,7 +15,7 @@
     "framer-motion": "^11.3.31",
     "html2canvas": "^1.4.1",
     "lucide-react": "^0.437.0",
-    "next": "^14.2.7",
+    "next": "^14.2.8",
     "react": "^18",
     "react-dom": "^18",
     "tailwind-merge": "^2.5.2",

@@ -5,7 +5,7 @@ import { motion } from 'framer-motion'
 import { Download, Plus, Minus } from 'lucide-react'
 import html2canvas from 'html2canvas'
 
-export function FixedBackgroundWeChatCoverCard() {
+export function WeChatCoverCard() {
   const [text, setText] = useState("Talk is cheap, show me your code.")
   const [isEditing, setIsEditing] = useState(false)
   const cardRef = useRef(null)
