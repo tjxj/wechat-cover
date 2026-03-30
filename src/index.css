@@ -1,0 +1,60 @@
+@font-face {
+  font-family: "Source Han Serif SC Local";
+  src: url("/fonts/SourceHanSerifSC-VF.ttf") format("truetype");
+  font-display: swap;
+}
+
+:root {
+  color-scheme: light;
+  --ink: #171717;
+  --muted: #6b6357;
+  --muted-strong: #4b463e;
+  --line: rgba(181, 172, 153, 0.35);
+  --bg:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.88), transparent 26%),
+    linear-gradient(180deg, #f6f2e8 0%, #ebe4d7 100%);
+  font:
+    16px/1.5 "Source Han Serif SC Local", "Source Han Serif SC", "Songti SC",
+    "STSong", "Noto Serif SC", serif;
+  color: var(--ink);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.36);
+  outline-offset: 2px;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
