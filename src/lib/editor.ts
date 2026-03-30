@@ -588,6 +588,69 @@ export const COLOR_SWATCHES = [
   '#22c55e',
 ]
 
+export const SOLID_BACKGROUND_PRESETS: BackgroundPreset[] = [
+  {
+    id: 'solid-paper',
+    name: '纸米色',
+    background: {
+      fill: '#f7f0dc',
+      accent: '#1f2329',
+      panel: '#fff9eb',
+      texture: '',
+    },
+  },
+  {
+    id: 'solid-snow',
+    name: '雪白',
+    background: {
+      fill: '#f8fafc',
+      accent: '#0f172a',
+      panel: '#ffffff',
+      texture: '',
+    },
+  },
+  {
+    id: 'solid-sky',
+    name: '浅天蓝',
+    background: {
+      fill: '#e0f2fe',
+      accent: '#0c4a6e',
+      panel: '#f0f9ff',
+      texture: '',
+    },
+  },
+  {
+    id: 'solid-blush',
+    name: '浅粉',
+    background: {
+      fill: '#fce7f3',
+      accent: '#831843',
+      panel: '#fff1f7',
+      texture: '',
+    },
+  },
+  {
+    id: 'solid-charcoal',
+    name: '炭黑',
+    background: {
+      fill: '#111827',
+      accent: '#f9fafb',
+      panel: '#1f2937',
+      texture: '',
+    },
+  },
+  {
+    id: 'solid-teal',
+    name: '墨青',
+    background: {
+      fill: '#0f766e',
+      accent: '#ecfeff',
+      panel: '#115e59',
+      texture: '',
+    },
+  },
+]
+
 export const BACKGROUND_PRESETS: BackgroundPreset[] = [
   {
     id: 'paper-fade',

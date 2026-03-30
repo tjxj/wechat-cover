@@ -36,6 +36,7 @@ import {
   setBuiltinTemplate,
   setImageShape,
   SIZE_PRESETS,
+  SOLID_BACKGROUND_PRESETS,
   TEMPLATE_OPTIONS,
   updateLayer,
   type BuiltinTemplateId,
@@ -76,6 +77,16 @@ type InteractionState =
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max)
 
+const isEditableTarget = (target: EventTarget | null) => {
+  if (!(target instanceof HTMLElement)) {
+    return false
+  }
+
+  return Boolean(
+    target.closest('input, textarea, select, [contenteditable="true"]'),
+  )
+}
+
 const defaultState = createEditorState('quote-card', 'xhs-34')
 const DEFAULT_TEXT_FRAME = 'rgba(255,255,255,0.88)'
 const TEXT_FRAME_SWATCHES = [
@@ -110,6 +121,9 @@ function App() {
   const [state, setState] = useState<EditorState>(defaultState)
   const [customTemplates, setCustomTemplates] = useState<UserTemplate[]>([])
   const [editingTextLayerId, setEditingTextLayerId] = useState<string | null>(null)
+  const [activeInspectorTab, setActiveInspectorTab] = useState<
+    'style' | 'layer' | 'background'
+  >('style')
   const [exporting, setExporting] = useState(false)
   const [templateDraft, setTemplateDraft] = useState('')
   const [statusMessage, setStatusMessage] = useState(
@@ -362,6 +376,7 @@ function App() {
 
   const handleAddText = () => {
     setEditingTextLayerId(null)
+    setActiveInspectorTab('style')
     setState((current) => addTextBlock(current))
     setStatusMessage('文字已添加，双击画布里的文字就能直接改。')
   }
@@ -376,6 +391,7 @@ function App() {
     }
 
     setEditingTextLayerId(null)
+    setActiveInspectorTab('style')
     const src = await readFileAsDataUrl(file)
     const dimensions = await getImageDimensions(src)
 
@@ -407,6 +423,7 @@ function App() {
 
     setEditingTextLayerId(null)
     setState((current) => removeLayer(current, selectedLayer.id))
+    setStatusMessage('已删除当前选中的元素。')
   }
 
   const handleExport = async () => {
@@ -473,6 +490,7 @@ function App() {
 
   const handleSelectLayer = (layerId: string) => {
     setEditingTextLayerId(null)
+    setActiveInspectorTab('style')
     setState((current) => selectLayer(current, layerId))
   }
 
@@ -547,9 +565,44 @@ function App() {
         preset.background.fill === state.background.fill &&
         preset.background.texture === state.background.texture,
     )?.id ?? null
+  const selectedSolidBackgroundPresetId =
+    SOLID_BACKGROUND_PRESETS.find(
+      (preset) =>
+        preset.background.fill === state.background.fill &&
+        preset.background.texture === state.background.texture,
+    )?.id ?? null
 
   const textLayers = state.layers.filter(isTextLayer)
   const imageLayers = state.layers.filter(isImageLayer)
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        !selectedLayer ||
+        editingTextLayerId ||
+        event.defaultPrevented ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.altKey ||
+        isEditableTarget(event.target)
+      ) {
+        return
+      }
+
+      if (event.key !== 'Backspace' && event.key !== 'Delete') {
+        return
+      }
+
+      event.preventDefault()
+      setEditingTextLayerId(null)
+      setState((current) => removeLayer(current, selectedLayer.id))
+      setStatusMessage('已删除当前选中的元素。')
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [editingTextLayerId, selectedLayer])
 
   return (
     <div className="studio-shell">
@@ -563,8 +616,7 @@ function App() {
         </div>
 
         <div className="topbar__controls">
-          <label className="field field--compact">
-            <span>尺寸</span>
+          <div className="topbar__select field--compact">
             <select
               aria-label="尺寸"
               value={state.size.id}
@@ -576,10 +628,9 @@ function App() {
                 </option>
               ))}
             </select>
-          </label>
+          </div>
 
-          <label className="field field--compact">
-            <span>模板</span>
+          <div className="topbar__select field--compact">
             <select
               aria-label="模板"
               value={templateSelectValue}
@@ -602,7 +653,7 @@ function App() {
                 </optgroup>
               )}
             </select>
-          </label>
+          </div>
 
           <button className="ghost-button" type="button" onClick={handleAddText}>
             <Plus size={16} />
@@ -752,6 +803,9 @@ function App() {
                               'canvas__layer',
                               'canvas__text-layer',
                               'canvas__text-editor',
+                              layer.background === 'transparent'
+                                ? 'canvas__text-layer--plain'
+                                : '',
                               isSelected ? 'is-selected' : '',
                             ]
                               .join(' ')
@@ -792,6 +846,9 @@ function App() {
                           className={[
                             'canvas__layer',
                             'canvas__text-layer',
+                            layer.background === 'transparent'
+                              ? 'canvas__text-layer--plain'
+                              : '',
                             isSelected ? 'is-selected' : '',
                           ]
                             .join(' ')
@@ -910,411 +967,506 @@ function App() {
               <p className="template-panel__status">{statusMessage}</p>
             </section>
 
-            {selectedTextLayer && (
+            <div className="tabs" role="tablist" aria-label="右侧设置">
+              {[
+                ['style', '样式'],
+                ['layer', '图层'],
+                ['background', '背景'],
+              ].map(([tabId, label]) => (
+                <button
+                  key={tabId}
+                  type="button"
+                  className={activeInspectorTab === tabId ? 'is-active' : ''}
+                  onClick={() =>
+                    setActiveInspectorTab(
+                      tabId as 'style' | 'layer' | 'background',
+                    )
+                  }
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {activeInspectorTab === 'style' && (
+              <>
+                {selectedTextLayer && (
+                  <section className="panel">
+                    <div className="panel__heading">
+                      <h2>文字样式</h2>
+                    </div>
+
+                    <div className="field-grid">
+                      <label className="field">
+                        <span>字号</span>
+                        <input
+                          type="number"
+                          min={18}
+                          max={180}
+                          aria-label="字号"
+                          value={Math.round(selectedTextLayer.fontSize)}
+                          onChange={(event) =>
+                            handleLayerUpdate({
+                              fontSize: Number(event.target.value),
+                            })
+                          }
+                        />
+                      </label>
+
+                      <label className="field">
+                        <span>字体</span>
+                        <select
+                          aria-label="字体"
+                          value={selectedTextLayer.fontId}
+                          onChange={(event) =>
+                            handleLayerUpdate({
+                              fontId: event.target.value as FontId,
+                            })
+                          }
+                        >
+                          {FONT_PRESETS.map((font) => (
+                            <option key={font.id} value={font.id}>
+                              {font.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+
+                    <div className="panel-subsection">
+                      <div className="field-grid">
+                        <label className="field">
+                          <span>字距</span>
+                          <input
+                            type="number"
+                            min={-4}
+                            max={12}
+                            step={0.5}
+                            aria-label="字距"
+                            value={selectedTextLayer.letterSpacing}
+                            onChange={(event) =>
+                              handleLayerUpdate({
+                                letterSpacing: Number(event.target.value),
+                              })
+                            }
+                          />
+                        </label>
+                        <label className="field">
+                          <span>行距</span>
+                          <input
+                            type="number"
+                            min={0.9}
+                            max={2.2}
+                            step={0.05}
+                            aria-label="行距"
+                            value={selectedTextLayer.lineHeight}
+                            onChange={(event) =>
+                              handleLayerUpdate({
+                                lineHeight: Number(event.target.value),
+                              })
+                            }
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="panel-subsection">
+                      <div className="field-grid">
+                        <label className="field">
+                          <span>描边</span>
+                          <input
+                            type="range"
+                            min={0}
+                            max={10}
+                            step={0.5}
+                            aria-label="描边"
+                            value={selectedTextLayer.strokeWidth}
+                            onChange={(event) =>
+                              handleLayerUpdate({
+                                strokeWidth: Number(event.target.value),
+                              })
+                            }
+                          />
+                        </label>
+                        <label className="field">
+                          <span>阴影</span>
+                          <input
+                            type="range"
+                            min={0}
+                            max={40}
+                            step={1}
+                            aria-label="阴影"
+                            value={selectedTextLayer.shadowBlur}
+                            onChange={(event) =>
+                              handleLayerUpdate({
+                                shadowBlur: Number(event.target.value),
+                              })
+                            }
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="panel-subsection">
+                      <div className="icon-group icon-group--double">
+                        <button
+                          type="button"
+                          className={
+                            selectedTextLayer.background !== 'transparent'
+                              ? 'is-active'
+                              : ''
+                          }
+                          onClick={() =>
+                            handleLayerUpdate({
+                              background:
+                                selectedTextLayer.background === 'transparent'
+                                  ? DEFAULT_TEXT_FRAME
+                                  : selectedTextLayer.background,
+                            })
+                          }
+                        >
+                          带底框
+                        </button>
+                        <button
+                          type="button"
+                          className={
+                            selectedTextLayer.background === 'transparent'
+                              ? 'is-active'
+                              : ''
+                          }
+                          onClick={() =>
+                            handleLayerUpdate({
+                              background: 'transparent',
+                              strokeWidth: 0,
+                            })
+                          }
+                        >
+                          无底框
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="panel-subsection">
+                      <span className="subtle-label">字色</span>
+                      <div className="swatches">
+                        {COLOR_SWATCHES.slice(0, 6).map((swatch) => (
+                          <button
+                            key={swatch}
+                            type="button"
+                            title={swatch}
+                            className={[
+                              'swatch',
+                              selectedTextLayer.color === swatch
+                                ? 'is-active'
+                                : '',
+                            ]
+                              .join(' ')
+                              .trim()}
+                            style={{ background: swatch }}
+                            onClick={() => handleLayerUpdate({ color: swatch })}
+                          />
+                        ))}
+                      </div>
+                    </div>
+
+                    {selectedTextLayer.strokeWidth > 0 && (
+                      <div className="panel-subsection">
+                        <span className="subtle-label">描边色</span>
+                        <div className="swatches">
+                          {COLOR_SWATCHES.slice(0, 6).map((swatch) => (
+                            <button
+                              key={`stroke-${swatch}`}
+                              type="button"
+                              title={swatch}
+                              className={[
+                                'swatch',
+                                selectedTextLayer.strokeColor === swatch
+                                  ? 'is-active'
+                                  : '',
+                              ]
+                                .join(' ')
+                                .trim()}
+                              style={{ background: swatch }}
+                              onClick={() =>
+                                handleLayerUpdate({ strokeColor: swatch })
+                              }
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedTextLayer.shadowBlur > 0 && (
+                      <div className="panel-subsection">
+                        <span className="subtle-label">阴影色</span>
+                        <div className="swatches">
+                          {[
+                            'rgba(15,23,42,0.35)',
+                            'rgba(17,24,39,0.56)',
+                            'rgba(37,99,235,0.32)',
+                            'rgba(244,114,182,0.34)',
+                            'rgba(249,115,22,0.34)',
+                          ].map((swatch) => (
+                            <button
+                              key={`shadow-${swatch}`}
+                              type="button"
+                              title={swatch}
+                              className={[
+                                'swatch',
+                                selectedTextLayer.shadowColor === swatch
+                                  ? 'is-active'
+                                  : '',
+                              ]
+                                .join(' ')
+                                .trim()}
+                              style={{ background: swatch }}
+                              onClick={() =>
+                                handleLayerUpdate({ shadowColor: swatch })
+                              }
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedTextLayer.background !== 'transparent' && (
+                      <div className="panel-subsection">
+                        <span className="subtle-label">底框</span>
+                        <div className="swatches">
+                          {TEXT_FRAME_SWATCHES.map((swatch) => (
+                            <button
+                              key={swatch}
+                              type="button"
+                              title={swatch}
+                              className={[
+                                'swatch',
+                                selectedTextLayer.background === swatch
+                                  ? 'is-active'
+                                  : '',
+                              ]
+                                .join(' ')
+                                .trim()}
+                              style={{ background: swatch }}
+                              onClick={() =>
+                                handleLayerUpdate({ background: swatch })
+                              }
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </section>
+                )}
+
+                {selectedImageLayer && (
+                  <section className="panel">
+                    <div className="panel__heading">
+                      <h2>图片形状</h2>
+                    </div>
+
+                    <div className="icon-group icon-group--double">
+                      <button
+                        type="button"
+                        className={
+                          selectedImageLayer.shape === 'rounded'
+                            ? 'is-active'
+                            : ''
+                        }
+                        onClick={() =>
+                          setState((current) =>
+                            setImageShape(
+                              current,
+                              selectedImageLayer.id,
+                              'rounded',
+                            ),
+                          )
+                        }
+                      >
+                        圆角矩形
+                      </button>
+                      <button
+                        type="button"
+                        className={
+                          selectedImageLayer.shape === 'circle'
+                            ? 'is-active'
+                            : ''
+                        }
+                        onClick={() =>
+                          setState((current) =>
+                            setImageShape(
+                              current,
+                              selectedImageLayer.id,
+                              'circle',
+                            ),
+                          )
+                        }
+                      >
+                        正圆图片
+                      </button>
+                    </div>
+
+                    {selectedImageLayer.shape === 'rounded' && (
+                      <div className="panel-subsection">
+                        <span className="subtle-label">圆角</span>
+                        <input
+                          type="range"
+                          aria-label="图片圆角"
+                          min={0}
+                          max={160}
+                          step={1}
+                          value={selectedImageLayer.radius}
+                          onChange={(event) =>
+                            handleLayerUpdate({
+                              radius: Number(event.target.value),
+                            })
+                          }
+                        />
+                      </div>
+                    )}
+                  </section>
+                )}
+
+                {!selectedLayer && (
+                  <section className="panel panel--muted">
+                    <p>先选中画布里的文字或图片，再改样式。</p>
+                  </section>
+                )}
+              </>
+            )}
+
+            {activeInspectorTab === 'layer' && (
+              <>
+                {selectedLayer && (
+                  <section className="panel">
+                    <div className="panel__heading">
+                      <h2>图层顺序</h2>
+                    </div>
+
+                    <div className="icon-group icon-group--double">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setState((current) =>
+                            moveLayerForward(current, selectedLayer.id),
+                          )
+                        }
+                        disabled={selectedLayerIndex === state.layers.length - 1}
+                      >
+                        上移一层
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setState((current) =>
+                            moveLayerBackward(current, selectedLayer.id),
+                          )
+                        }
+                        disabled={selectedLayerIndex <= 0}
+                      >
+                        下移一层
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setState((current) =>
+                            bringLayerToFront(current, selectedLayer.id),
+                          )
+                        }
+                        disabled={selectedLayerIndex === state.layers.length - 1}
+                      >
+                        置顶
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setState((current) =>
+                            sendLayerToBack(current, selectedLayer.id),
+                          )
+                        }
+                        disabled={selectedLayerIndex <= 0}
+                      >
+                        置底
+                      </button>
+                    </div>
+                  </section>
+                )}
+
+                {!selectedLayer && (
+                  <section className="panel panel--muted">
+                    <p>先选中一个元素，再调整图层顺序。</p>
+                  </section>
+                )}
+              </>
+            )}
+
+            {activeInspectorTab === 'background' && (
               <section className="panel">
                 <div className="panel__heading">
-                  <h2>文字样式</h2>
-                </div>
-
-                <div className="field-grid">
-                  <label className="field">
-                    <span>字号</span>
-                    <input
-                      type="number"
-                      min={18}
-                      max={180}
-                      aria-label="字号"
-                      value={Math.round(selectedTextLayer.fontSize)}
-                      onChange={(event) =>
-                        handleLayerUpdate({
-                          fontSize: Number(event.target.value),
-                        })
-                      }
-                    />
-                  </label>
-
-                  <label className="field">
-                    <span>字体</span>
-                    <select
-                      aria-label="字体"
-                      value={selectedTextLayer.fontId}
-                      onChange={(event) =>
-                        handleLayerUpdate({
-                          fontId: event.target.value as FontId,
-                        })
-                      }
-                    >
-                      {FONT_PRESETS.map((font) => (
-                        <option key={font.id} value={font.id}>
-                          {font.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <h2>背景</h2>
                 </div>
 
                 <div className="panel-subsection">
-                  <div className="field-grid">
-                    <label className="field">
-                      <span>字距</span>
-                      <input
-                        type="number"
-                        min={-4}
-                        max={12}
-                        step={0.5}
-                        aria-label="字距"
-                        value={selectedTextLayer.letterSpacing}
-                        onChange={(event) =>
-                          handleLayerUpdate({
-                            letterSpacing: Number(event.target.value),
-                          })
-                        }
-                      />
-                    </label>
-                    <label className="field">
-                      <span>行距</span>
-                      <input
-                        type="number"
-                        min={0.9}
-                        max={2.2}
-                        step={0.05}
-                        aria-label="行距"
-                        value={selectedTextLayer.lineHeight}
-                        onChange={(event) =>
-                          handleLayerUpdate({
-                            lineHeight: Number(event.target.value),
-                          })
-                        }
-                      />
-                    </label>
-                  </div>
-                </div>
-
-                <div className="panel-subsection">
-                  <div className="field-grid">
-                    <label className="field">
-                      <span>描边</span>
-                      <input
-                        type="range"
-                        min={0}
-                        max={10}
-                        step={0.5}
-                        aria-label="描边"
-                        value={selectedTextLayer.strokeWidth}
-                        onChange={(event) =>
-                          handleLayerUpdate({
-                            strokeWidth: Number(event.target.value),
-                          })
-                        }
-                      />
-                    </label>
-                    <label className="field">
-                      <span>阴影</span>
-                      <input
-                        type="range"
-                        min={0}
-                        max={40}
-                        step={1}
-                        aria-label="阴影"
-                        value={selectedTextLayer.shadowBlur}
-                        onChange={(event) =>
-                          handleLayerUpdate({
-                            shadowBlur: Number(event.target.value),
-                          })
-                        }
-                      />
-                    </label>
-                  </div>
-                </div>
-
-                <div className="panel-subsection">
-                  <div className="icon-group icon-group--double">
-                    <button
-                      type="button"
-                      className={
-                        selectedTextLayer.background !== 'transparent'
-                          ? 'is-active'
-                          : ''
-                      }
-                      onClick={() =>
-                        handleLayerUpdate({
-                          background:
-                            selectedTextLayer.background === 'transparent'
-                              ? DEFAULT_TEXT_FRAME
-                              : selectedTextLayer.background,
-                        })
-                      }
-                    >
-                      带底框
-                    </button>
-                    <button
-                      type="button"
-                      className={
-                        selectedTextLayer.background === 'transparent'
-                          ? 'is-active'
-                          : ''
-                      }
-                      onClick={() =>
-                        handleLayerUpdate({ background: 'transparent' })
-                      }
-                    >
-                      无底框
-                    </button>
-                  </div>
-                </div>
-
-                <div className="panel-subsection">
-                  <span className="subtle-label">字色</span>
-                  <div className="swatches">
-                    {COLOR_SWATCHES.slice(0, 6).map((swatch) => (
+                  <span className="subtle-label">纯色</span>
+                  <div className="solid-background-grid">
+                    {SOLID_BACKGROUND_PRESETS.map((preset) => (
                       <button
-                        key={swatch}
+                        key={preset.id}
                         type="button"
-                        title={swatch}
+                        aria-label={`纯色背景 ${preset.background.fill}`}
                         className={[
-                          'swatch',
-                          selectedTextLayer.color === swatch ? 'is-active' : '',
+                          'solid-background-swatch',
+                          selectedSolidBackgroundPresetId === preset.id
+                            ? 'is-active'
+                            : '',
                         ]
                           .join(' ')
                           .trim()}
-                        style={{ background: swatch }}
-                        onClick={() => handleLayerUpdate({ color: swatch })}
+                        style={{ backgroundColor: preset.background.fill }}
+                        onClick={() =>
+                          setState((current) => ({
+                            ...current,
+                            background: { ...preset.background },
+                          }))
+                        }
                       />
                     ))}
                   </div>
                 </div>
 
-                {selectedTextLayer.strokeWidth > 0 && (
-                  <div className="panel-subsection">
-                    <span className="subtle-label">描边色</span>
-                    <div className="swatches">
-                      {COLOR_SWATCHES.slice(0, 6).map((swatch) => (
-                        <button
-                          key={`stroke-${swatch}`}
-                          type="button"
-                          title={swatch}
-                          className={[
-                            'swatch',
-                            selectedTextLayer.strokeColor === swatch
-                              ? 'is-active'
-                              : '',
-                          ]
-                            .join(' ')
-                            .trim()}
-                          style={{ background: swatch }}
-                          onClick={() =>
-                            handleLayerUpdate({ strokeColor: swatch })
-                          }
-                        />
-                      ))}
-                    </div>
+                <div className="panel-subsection">
+                  <span className="subtle-label">渐变</span>
+                  <div className="background-grid">
+                    {BACKGROUND_PRESETS.map((preset) => (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        aria-label={preset.name}
+                        className={[
+                          'background-card',
+                          selectedBackgroundPresetId === preset.id
+                            ? 'is-active'
+                            : '',
+                        ]
+                          .join(' ')
+                          .trim()}
+                        style={{
+                          backgroundColor: preset.background.fill,
+                          backgroundImage: preset.background.texture,
+                        }}
+                        onClick={() =>
+                          setState((current) => ({
+                            ...current,
+                            background: { ...preset.background },
+                          }))
+                        }
+                      >
+                        <span>{preset.name}</span>
+                      </button>
+                    ))}
                   </div>
-                )}
-
-                {selectedTextLayer.shadowBlur > 0 && (
-                  <div className="panel-subsection">
-                    <span className="subtle-label">阴影色</span>
-                    <div className="swatches">
-                      {[
-                        'rgba(15,23,42,0.35)',
-                        'rgba(17,24,39,0.56)',
-                        'rgba(37,99,235,0.32)',
-                        'rgba(244,114,182,0.34)',
-                        'rgba(249,115,22,0.34)',
-                      ].map((swatch) => (
-                        <button
-                          key={`shadow-${swatch}`}
-                          type="button"
-                          title={swatch}
-                          className={[
-                            'swatch',
-                            selectedTextLayer.shadowColor === swatch
-                              ? 'is-active'
-                              : '',
-                          ]
-                            .join(' ')
-                            .trim()}
-                          style={{ background: swatch }}
-                          onClick={() =>
-                            handleLayerUpdate({ shadowColor: swatch })
-                          }
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {selectedTextLayer.background !== 'transparent' && (
-                  <div className="panel-subsection">
-                    <span className="subtle-label">底框</span>
-                    <div className="swatches">
-                      {TEXT_FRAME_SWATCHES.map((swatch) => (
-                        <button
-                          key={swatch}
-                          type="button"
-                          title={swatch}
-                          className={[
-                            'swatch',
-                            selectedTextLayer.background === swatch
-                              ? 'is-active'
-                              : '',
-                          ]
-                            .join(' ')
-                            .trim()}
-                          style={{ background: swatch }}
-                          onClick={() => handleLayerUpdate({ background: swatch })}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </section>
-            )}
-
-            {selectedLayer && (
-              <section className="panel">
-                <div className="panel__heading">
-                  <h2>图层顺序</h2>
-                </div>
-
-                <div className="icon-group icon-group--double">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setState((current) =>
-                        moveLayerForward(current, selectedLayer.id),
-                      )
-                    }
-                    disabled={selectedLayerIndex === state.layers.length - 1}
-                  >
-                    上移一层
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setState((current) =>
-                        moveLayerBackward(current, selectedLayer.id),
-                      )
-                    }
-                    disabled={selectedLayerIndex <= 0}
-                  >
-                    下移一层
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setState((current) =>
-                        bringLayerToFront(current, selectedLayer.id),
-                      )
-                    }
-                    disabled={selectedLayerIndex === state.layers.length - 1}
-                  >
-                    置顶
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setState((current) =>
-                        sendLayerToBack(current, selectedLayer.id),
-                      )
-                    }
-                    disabled={selectedLayerIndex <= 0}
-                  >
-                    置底
-                  </button>
                 </div>
               </section>
             )}
-
-            {selectedImageLayer && (
-              <section className="panel">
-                <div className="panel__heading">
-                  <h2>图片形状</h2>
-                </div>
-
-                <div className="icon-group icon-group--double">
-                  <button
-                    type="button"
-                    className={
-                      selectedImageLayer.shape === 'rounded' ? 'is-active' : ''
-                    }
-                    onClick={() =>
-                      setState((current) =>
-                        setImageShape(current, selectedImageLayer.id, 'rounded'),
-                      )
-                    }
-                  >
-                    圆角矩形
-                  </button>
-                  <button
-                    type="button"
-                    className={
-                      selectedImageLayer.shape === 'circle' ? 'is-active' : ''
-                    }
-                    onClick={() =>
-                      setState((current) =>
-                        setImageShape(current, selectedImageLayer.id, 'circle'),
-                      )
-                    }
-                  >
-                    正圆图片
-                  </button>
-                </div>
-
-                {selectedImageLayer.shape === 'rounded' && (
-                  <div className="panel-subsection">
-                    <span className="subtle-label">圆角</span>
-                    <input
-                      type="range"
-                      aria-label="图片圆角"
-                      min={0}
-                      max={160}
-                      step={1}
-                      value={selectedImageLayer.radius}
-                      onChange={(event) =>
-                        handleLayerUpdate({
-                          radius: Number(event.target.value),
-                        })
-                      }
-                    />
-                  </div>
-                )}
-              </section>
-            )}
-
-            <section className="panel">
-              <div className="panel__heading">
-                <h2>背景</h2>
-              </div>
-
-              <div className="background-grid">
-                {BACKGROUND_PRESETS.map((preset) => (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    aria-label={preset.name}
-                    className={[
-                      'background-card',
-                      selectedBackgroundPresetId === preset.id ? 'is-active' : '',
-                    ]
-                      .join(' ')
-                      .trim()}
-                    style={{
-                      backgroundColor: preset.background.fill,
-                      backgroundImage: preset.background.texture,
-                    }}
-                    onClick={() =>
-                      setState((current) => ({
-                        ...current,
-                        background: { ...preset.background },
-                      }))
-                    }
-                  >
-                    <span>{preset.name}</span>
-                  </button>
-                ))}
-              </div>
-            </section>
           </div>
         </aside>
       </div>

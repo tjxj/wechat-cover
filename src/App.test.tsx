@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from './App'
 
@@ -19,9 +19,13 @@ describe('App', () => {
     expect(
       screen.getByRole('button', { name: '下载 PNG' }),
     ).toBeInTheDocument()
+    expect(screen.queryByText('尺寸')).not.toBeInTheDocument()
+    expect(screen.queryByText('模板')).not.toBeInTheDocument()
     expect(screen.queryByText('本地运行')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '排列' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Moonlit Asteroid' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '样式' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '图层' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '背景' })).toBeInTheDocument()
   })
 
   it('switches template presets from the top bar', async () => {
@@ -80,13 +84,63 @@ describe('App', () => {
     })
   })
 
+  it('switches inspector tabs and exposes solid background colors', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    expect(screen.getByLabelText('字号')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '背景' }))
+
+    expect(screen.queryByLabelText('字号')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '纯色背景 #f7f0dc' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Moonlit Asteroid' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '图层' }))
+
+    expect(screen.getByRole('button', { name: '上移一层' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '纯色背景 #f7f0dc' })).not.toBeInTheDocument()
+  })
+
+  it('clears text outline together with frame when switching to no frame', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    fireEvent.change(screen.getByLabelText('描边'), {
+      target: { value: '3' },
+    })
+
+    const textLayer = screen.getByLabelText('文字图层 1')
+    expect(textLayer.style.webkitTextStroke).toContain('3px')
+
+    await user.click(screen.getByRole('button', { name: '无底框' }))
+
+    expect(textLayer).toHaveStyle({ background: 'transparent' })
+    expect(textLayer.style.webkitTextStroke).toBe('')
+  })
+
+  it('deletes the selected layer with the keyboard delete key on mac', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    const beforeCount = screen.getAllByLabelText(/文字图层/).length
+    await user.click(screen.getByLabelText('文字图层 1'))
+    fireEvent.keyDown(window, { key: 'Backspace' })
+
+    expect(screen.getAllByLabelText(/文字图层/)).toHaveLength(beforeCount - 1)
+  })
+
   it('shows advanced text controls and layer order actions', async () => {
+    const user = userEvent.setup()
     render(<App />)
 
     expect(screen.getByLabelText('字距')).toBeInTheDocument()
     expect(screen.getByLabelText('行距')).toBeInTheDocument()
     expect(screen.getByLabelText('描边')).toBeInTheDocument()
     expect(screen.getByLabelText('阴影')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '图层' }))
+
     expect(screen.getByRole('button', { name: '上移一层' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '下移一层' })).toBeInTheDocument()
   })
