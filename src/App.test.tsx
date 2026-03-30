@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from './App'
 
@@ -11,6 +11,8 @@ describe('App', () => {
   it('renders the local cover studio workspace', () => {
     render(<App />)
 
+    const banner = screen.getByRole('banner')
+
     expect(
       screen.getByRole('heading', { level: 1, name: 'AI学习的章北海' }),
     ).toBeInTheDocument()
@@ -22,14 +24,15 @@ describe('App', () => {
     expect(
       screen.getByRole('button', { name: '下载 PNG' }),
     ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '撤销' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: '重做' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: '撤销' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '重做' })).not.toBeInTheDocument()
     expect(screen.queryByText('尺寸')).not.toBeInTheDocument()
     expect(screen.queryByText('模板')).not.toBeInTheDocument()
     expect(screen.queryByText('本地运行')).not.toBeInTheDocument()
     expect(screen.queryByText('本地复刻版')).not.toBeInTheDocument()
     expect(screen.queryByText(/预览/)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '排列' })).not.toBeInTheDocument()
+    expect(within(banner).queryByText('AI学习的老章')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '样式' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '图层' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '背景' })).toBeInTheDocument()
@@ -139,7 +142,7 @@ describe('App', () => {
     expect(screen.getAllByLabelText(/文字图层/)).toHaveLength(beforeCount - 1)
   })
 
-  it('undoes and redoes editor changes after deleting a layer', async () => {
+  it('undoes and redoes editor changes with keyboard shortcuts after deleting a layer', async () => {
     const user = userEvent.setup()
     render(<App />)
 
@@ -149,10 +152,10 @@ describe('App', () => {
     fireEvent.keyDown(window, { key: 'Backspace' })
     expect(screen.getAllByLabelText(/文字图层/)).toHaveLength(beforeCount - 1)
 
-    await user.click(screen.getByRole('button', { name: '撤销' }))
+    fireEvent.keyDown(window, { key: 'z', metaKey: true })
     expect(screen.getAllByLabelText(/文字图层/)).toHaveLength(beforeCount)
 
-    await user.click(screen.getByRole('button', { name: '重做' }))
+    fireEvent.keyDown(window, { key: 'z', metaKey: true, shiftKey: true })
     expect(screen.getAllByLabelText(/文字图层/)).toHaveLength(beforeCount - 1)
   })
 
@@ -180,6 +183,9 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: '左对齐' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '居中对齐' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '右对齐' })).toBeInTheDocument()
+    expect(screen.queryByText(/^左对齐$/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/^居中对齐$/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/^右对齐$/)).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: '图层' }))
 

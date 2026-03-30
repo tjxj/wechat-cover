@@ -32,9 +32,9 @@
 }
 
 .brand__mark {
-  width: 52px;
-  height: 52px;
-  border-radius: 18px;
+  width: 56px;
+  height: 56px;
+  border-radius: 999px;
   overflow: hidden;
   box-shadow:
     0 14px 24px rgba(36, 17, 56, 0.18),
@@ -46,14 +46,6 @@
   height: 100%;
   display: block;
   object-fit: cover;
-}
-
-.eyebrow {
-  margin: 0 0 4px;
-  color: var(--muted);
-  font-size: 0.78rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
 }
 
 .brand h1 {
@@ -70,9 +62,10 @@
 
 .topbar__template-save {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
-  min-width: min(360px, 100%);
+  grid-template-columns: minmax(0, 136px) auto;
+  gap: 10px;
+  width: min(232px, 100%);
+  flex: 0 1 232px;
 }
 
 .topbar__template-save input {

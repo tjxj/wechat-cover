@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toPng } from 'html-to-image'
 import {
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
   Download,
   ImagePlus,
   Layers3,
   MousePointer2,
-  RotateCcw,
-  RotateCw,
   Trash2,
   Type,
 } from 'lucide-react'
@@ -213,12 +214,6 @@ function App() {
     }
 
     previousStateRef.current = currentSnapshot
-  }
-
-  const replaceStateWithoutHistory = (nextState: EditorState) => {
-    skipHistoryRef.current = true
-    previousStateRef.current = cloneEditorState(nextState)
-    setState(nextState)
   }
 
   const handleSetTextAlign = (textAlign: TextAlign) => {
@@ -617,46 +612,6 @@ function App() {
     setStatusMessage('已删除当前选中的元素。')
   }
 
-  const handleUndo = () => {
-    endHistoryTransaction()
-
-    const previousSnapshot = historyPast[historyPast.length - 1]
-
-    if (!previousSnapshot) {
-      return
-    }
-
-    const currentSnapshot = cloneEditorState(stateRef.current)
-    setEditingTextLayerId(null)
-    setHistoryPast((current) => current.slice(0, -1))
-    setHistoryFuture((current) => [
-      ...current.slice(-(MAX_HISTORY_STEPS - 1)),
-      currentSnapshot,
-    ])
-    replaceStateWithoutHistory(cloneEditorState(previousSnapshot))
-    setStatusMessage('已撤销上一步。')
-  }
-
-  const handleRedo = () => {
-    endHistoryTransaction()
-
-    const nextSnapshot = historyFuture[historyFuture.length - 1]
-
-    if (!nextSnapshot) {
-      return
-    }
-
-    const currentSnapshot = cloneEditorState(stateRef.current)
-    setEditingTextLayerId(null)
-    setHistoryFuture((current) => current.slice(0, -1))
-    setHistoryPast((current) => [
-      ...current.slice(-(MAX_HISTORY_STEPS - 1)),
-      currentSnapshot,
-    ])
-    replaceStateWithoutHistory(cloneEditorState(nextSnapshot))
-    setStatusMessage('已恢复刚才撤销的内容。')
-  }
-
   const handleExport = async () => {
     if (!canvasRef.current) {
       return
@@ -1014,10 +969,7 @@ function App() {
               className="brand__avatar"
             />
           </div>
-          <div>
-            <p className="eyebrow">AI学习的老章</p>
-            <h1>AI学习的章北海</h1>
-          </div>
+          <h1>AI学习的章北海</h1>
         </div>
 
         <div className="topbar__controls">
@@ -1071,26 +1023,6 @@ function App() {
               保存模板
             </button>
           </div>
-
-          <button
-            className="ghost-button"
-            type="button"
-            onClick={handleUndo}
-            disabled={historyPast.length === 0}
-          >
-            <RotateCcw size={16} />
-            撤销
-          </button>
-
-          <button
-            className="ghost-button"
-            type="button"
-            onClick={handleRedo}
-            disabled={historyFuture.length === 0}
-          >
-            <RotateCw size={16} />
-            重做
-          </button>
 
           <button
             className="primary-button"
@@ -1505,6 +1437,7 @@ function App() {
                       <div className="icon-group">
                         <button
                           type="button"
+                          aria-label="左对齐"
                           className={
                             selectedTextLayer.textAlign === 'left'
                               ? 'is-active'
@@ -1512,10 +1445,11 @@ function App() {
                           }
                           onClick={() => handleSetTextAlign('left')}
                         >
-                          左对齐
+                          <AlignLeft size={16} />
                         </button>
                         <button
                           type="button"
+                          aria-label="居中对齐"
                           className={
                             selectedTextLayer.textAlign === 'center'
                               ? 'is-active'
@@ -1523,10 +1457,11 @@ function App() {
                           }
                           onClick={() => handleSetTextAlign('center')}
                         >
-                          居中对齐
+                          <AlignCenter size={16} />
                         </button>
                         <button
                           type="button"
+                          aria-label="右对齐"
                           className={
                             selectedTextLayer.textAlign === 'right'
                               ? 'is-active'
@@ -1534,7 +1469,7 @@ function App() {
                           }
                           onClick={() => handleSetTextAlign('right')}
                         >
-                          右对齐
+                          <AlignRight size={16} />
                         </button>
                       </div>
                     </div>
