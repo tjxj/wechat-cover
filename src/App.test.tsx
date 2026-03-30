@@ -12,7 +12,10 @@ describe('App', () => {
     render(<App />)
 
     expect(
-      screen.getByRole('heading', { level: 1, name: '封面工作台' }),
+      screen.getByRole('heading', { level: 1, name: 'AI学习的章北海' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('img', { name: 'AI学习的章北海头像' }),
     ).toBeInTheDocument()
     expect(screen.getByLabelText('尺寸')).toHaveValue('xhs-34')
     expect(screen.getByLabelText('模板')).toHaveValue('builtin:quote-card')
@@ -24,10 +27,15 @@ describe('App', () => {
     expect(screen.queryByText('尺寸')).not.toBeInTheDocument()
     expect(screen.queryByText('模板')).not.toBeInTheDocument()
     expect(screen.queryByText('本地运行')).not.toBeInTheDocument()
+    expect(screen.queryByText('本地复刻版')).not.toBeInTheDocument()
+    expect(screen.queryByText(/预览/)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '排列' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '样式' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '图层' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '背景' })).toBeInTheDocument()
+    expect(screen.getByLabelText('模板名称')).toBeInTheDocument()
+    expect(screen.queryByText('乔木封面实验室')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('文字图层 3')).toHaveTextContent('AI学习的老章')
   })
 
   it('switches template presets from the top bar', async () => {
@@ -36,9 +44,6 @@ describe('App', () => {
 
     await user.selectOptions(screen.getByLabelText('模板'), 'builtin:story-glow')
 
-    expect(screen.getByTestId('current-template-name')).toHaveTextContent(
-      '故事封面',
-    )
     expect(screen.getByLabelText('文字图层 1')).toHaveTextContent(
       '凌晨三点的灵感',
     )
@@ -172,11 +177,36 @@ describe('App', () => {
     expect(screen.getByLabelText('行距')).toBeInTheDocument()
     expect(screen.getByLabelText('描边')).toBeInTheDocument()
     expect(screen.getByLabelText('阴影')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '左对齐' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '居中对齐' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '右对齐' })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: '图层' }))
 
     expect(screen.getByRole('button', { name: '上移一层' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '下移一层' })).toBeInTheDocument()
+  })
+
+  it('changes text alignment from the style panel', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    const textLayer = screen.getByLabelText('文字图层 1')
+
+    await user.click(screen.getByRole('button', { name: '居中对齐' }))
+
+    expect(textLayer).toHaveStyle({ textAlign: 'center' })
+  })
+
+  it('shows a resize handle for selected text layers', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByLabelText('文字图层 1'))
+
+    expect(
+      screen.getByRole('button', { name: '调整文字宽度' }),
+    ).toBeInTheDocument()
   })
 
   it('saves a custom template and loads it again after remount', async () => {

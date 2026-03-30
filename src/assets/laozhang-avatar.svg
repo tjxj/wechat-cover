@@ -1,0 +1,37 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="40" y1="20" x2="216" y2="236" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F7E6D7"/>
+      <stop offset="0.55" stop-color="#241138"/>
+      <stop offset="1" stop-color="#090612"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(128 62) rotate(90) scale(116 96)">
+      <stop stop-color="#FFF5EE"/>
+      <stop offset="1" stop-color="#FFF5EE" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="shirt" x1="128" y1="158" x2="128" y2="252" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6E54A8"/>
+      <stop offset="1" stop-color="#40326E"/>
+    </linearGradient>
+    <linearGradient id="skin" x1="128" y1="64" x2="128" y2="172" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F5D2BC"/>
+      <stop offset="1" stop-color="#E6B594"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="64" fill="url(#bg)"/>
+  <rect width="256" height="256" rx="64" fill="url(#glow)"/>
+  <circle cx="44" cy="114" r="14" fill="#A60E24" fill-opacity="0.7"/>
+  <path d="M34 244C46 212 78 194 128 194C178 194 210 212 222 244V256H34V244Z" fill="#D1D5C4"/>
+  <path d="M68 244C78 206 99 186 128 186C157 186 178 206 188 244V256H68V244Z" fill="url(#shirt)"/>
+  <path d="M103 169C103 154.088 114.641 142 129 142C143.359 142 155 154.088 155 169V191H103V169Z" fill="url(#skin)"/>
+  <path d="M76 99C76 68.6243 99.6243 44 129 44C158.376 44 182 68.6243 182 99V118C182 149.376 158.376 174 129 174C99.6243 174 76 149.376 76 118V99Z" fill="url(#skin)"/>
+  <path d="M79 98C79 67 104 49 128 49C151 49 176 63 176 93C176 97 175 102 173 106C162 90 146 82 125 82C108 82 94 87 82 99L79 98Z" fill="#23162C"/>
+  <path d="M82 98C89 77 108 61 134 61C154 61 167 71 176 84C171 61 152 45 127 45C101 45 80 63 80 91C80 94 81 96 82 98Z" fill="#34203E"/>
+  <path d="M103 110C103 98.9543 111.954 90 123 90H139C150.046 90 159 98.9543 159 110V113C159 124.046 150.046 133 139 133H123C111.954 133 103 124.046 103 113V110Z" stroke="#4E2C8C" stroke-width="4"/>
+  <path d="M83 110C83 98.9543 91.9543 90 103 90H119C130.046 90 139 98.9543 139 110V113C139 124.046 130.046 133 119 133H103C91.9543 133 83 124.046 83 113V110Z" stroke="#4E2C8C" stroke-width="4"/>
+  <path d="M139 110H103" stroke="#4E2C8C" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="108" cy="113" r="4" fill="#201522"/>
+  <circle cx="148" cy="113" r="4" fill="#201522"/>
+  <path d="M121 141C126.5 144.5 132 144.5 137 141" stroke="#A4666A" stroke-width="3" stroke-linecap="round"/>
+  <path d="M104 159C114 166 145 166 154 159" stroke="#D9A78E" stroke-width="4" stroke-linecap="round" opacity="0.45"/>
+</svg>

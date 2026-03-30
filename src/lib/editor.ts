@@ -115,13 +115,57 @@ interface TemplateDefinition {
 const DEFAULT_STROKE_COLOR = 'rgba(255,255,255,0.96)'
 const DEFAULT_SHADOW_COLOR = 'rgba(15,23,42,0.35)'
 
+const getCharacterWidthFactor = (char: string) => {
+  if (char === ' ') {
+    return 0.35
+  }
+
+  if (/[\u4E00-\u9FFF\u3400-\u4DBF\u3000-\u303F\uFF00-\uFFEF]/.test(char)) {
+    return 1
+  }
+
+  if (/[A-Z]/.test(char)) {
+    return 0.72
+  }
+
+  if (/[a-z0-9]/.test(char)) {
+    return 0.58
+  }
+
+  return 0.52
+}
+
 const estimateTextHeight = (
   content: string,
+  width: number,
   fontSize: number,
   lineHeight: number,
+  letterSpacing: number,
+  hasFrame: boolean,
 ) => {
-  const lines = Math.max(content.split('\n').length, 1)
-  return Number((fontSize * lineHeight * lines + 32).toFixed(1))
+  const safeWidth = Math.max(width - (hasFrame ? 36 : 0), fontSize)
+  const wrappedLines = content.split('\n').reduce((total, line) => {
+    if (!line.trim()) {
+      return total + 1
+    }
+
+    const glyphWidth = [...line].reduce(
+      (sum, char) => sum + getCharacterWidthFactor(char) * fontSize,
+      0,
+    )
+    const spacingWidth = Math.max(0, line.length - 1) * letterSpacing
+    const lineWidth = glyphWidth + spacingWidth
+
+    return total + Math.max(1, Math.ceil(lineWidth / safeWidth))
+  }, 0)
+
+  const verticalPadding = hasFrame ? 32 : 0
+
+  return Number(
+    (fontSize * lineHeight * Math.max(wrappedLines, 1) + verticalPadding).toFixed(
+      1,
+    ),
+  )
 }
 
 const toTextLayer = (layer: TextSeed, id = nextId('layer')): TextLayer => ({
@@ -132,7 +176,14 @@ const toTextLayer = (layer: TextSeed, id = nextId('layer')): TextLayer => ({
   shadowColor: layer.shadowColor ?? DEFAULT_SHADOW_COLOR,
   id,
   kind: 'text',
-  height: estimateTextHeight(layer.content, layer.fontSize, layer.lineHeight),
+  height: estimateTextHeight(
+    layer.content,
+    layer.width,
+    layer.fontSize,
+    layer.lineHeight,
+    layer.letterSpacing,
+    layer.background !== 'transparent',
+  ),
 })
 
 const getImageAspectRatio = (
@@ -188,23 +239,34 @@ const normalizeImageLayer = (layer: ImageLayer): ImageLayer => {
   }
 }
 
-const normalizeTextLayer = (layer: TextLayer): TextLayer => ({
-  ...layer,
-  width: Number(Math.max(120, layer.width).toFixed(1)),
-  lineHeight: Number(Math.min(Math.max(layer.lineHeight ?? 1.2, 0.9), 2.2).toFixed(2)),
-  letterSpacing: Number(
+const normalizeTextLayer = (layer: TextLayer): TextLayer => {
+  const width = Number(Math.max(120, layer.width).toFixed(1))
+  const lineHeight = Number(
+    Math.min(Math.max(layer.lineHeight ?? 1.2, 0.9), 2.2).toFixed(2),
+  )
+  const letterSpacing = Number(
     Math.min(Math.max(layer.letterSpacing ?? 0, -4), 12).toFixed(1),
-  ),
-  strokeWidth: Number(Math.min(Math.max(layer.strokeWidth ?? 0, 0), 12).toFixed(1)),
-  strokeColor: layer.strokeColor ?? DEFAULT_STROKE_COLOR,
-  shadowBlur: Number(Math.min(Math.max(layer.shadowBlur ?? 0, 0), 48).toFixed(1)),
-  shadowColor: layer.shadowColor ?? DEFAULT_SHADOW_COLOR,
-  height: estimateTextHeight(
-    layer.content,
-    layer.fontSize,
-    Number(Math.min(Math.max(layer.lineHeight ?? 1.2, 0.9), 2.2).toFixed(2)),
-  ),
-})
+  )
+
+  return {
+    ...layer,
+    width,
+    lineHeight,
+    letterSpacing,
+    strokeWidth: Number(Math.min(Math.max(layer.strokeWidth ?? 0, 0), 12).toFixed(1)),
+    strokeColor: layer.strokeColor ?? DEFAULT_STROKE_COLOR,
+    shadowBlur: Number(Math.min(Math.max(layer.shadowBlur ?? 0, 0), 48).toFixed(1)),
+    shadowColor: layer.shadowColor ?? DEFAULT_SHADOW_COLOR,
+    height: estimateTextHeight(
+      layer.content,
+      width,
+      layer.fontSize,
+      lineHeight,
+      letterSpacing,
+      layer.background !== 'transparent',
+    ),
+  }
+}
 
 const normalizeLayer = (layer: CanvasLayer): CanvasLayer =>
   layer.kind === 'text' ? normalizeTextLayer(layer) : normalizeImageLayer(layer)
@@ -327,7 +389,7 @@ const builtinTemplates: TemplateDefinition[] = [
         weight: 500,
       },
       {
-        content: '乔木封面实验室',
+        content: 'AI学习的老章',
         x: 116,
         y: 1122,
         width: 320,
@@ -498,7 +560,7 @@ const builtinTemplates: TemplateDefinition[] = [
         weight: 600,
       },
       {
-        content: 'LOCAL DEMO',
+        content: 'AI学习的老章',
         x: 1620,
         y: 142,
         width: 240,

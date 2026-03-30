@@ -1,17 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toPng } from 'html-to-image'
 import {
-  Copy,
   Download,
   ImagePlus,
   Layers3,
   MousePointer2,
-  Plus,
   RotateCcw,
   RotateCw,
   Trash2,
   Type,
 } from 'lucide-react'
+import brandAvatar from './assets/laozhang-avatar.svg'
 import './App.css'
 import {
   addImageLayer,
@@ -26,7 +25,6 @@ import {
   FONT_LOOKUP,
   FONT_PRESETS,
   getLayerById,
-  getTemplateName,
   isImageLayer,
   isTextLayer,
   moveLayerBackward,
@@ -48,6 +46,8 @@ import {
   type ImageLayer,
   type ImageShape,
   type SizeId,
+  type TextAlign,
+  type TextLayer,
   type UserTemplate,
 } from './lib/editor'
 import {
@@ -74,6 +74,13 @@ type InteractionState =
       originX: number
       originY: number
       shape: ImageShape
+    }
+  | {
+      mode: 'resize-text'
+      layerId: string
+      startPointerX: number
+      startWidth: number
+      originX: number
     }
 
 const clamp = (value: number, min: number, max: number) =>
@@ -212,6 +219,49 @@ function App() {
     skipHistoryRef.current = true
     previousStateRef.current = cloneEditorState(nextState)
     setState(nextState)
+  }
+
+  const handleSetTextAlign = (textAlign: TextAlign) => {
+    if (!selectedTextLayer) {
+      return
+    }
+
+    handleLayerUpdate({ textAlign })
+  }
+
+  const handleAlignLayerToCanvas = (
+    alignment: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom',
+  ) => {
+    if (!selectedLayer) {
+      return
+    }
+
+    const patch =
+      alignment === 'left'
+        ? { x: 24 }
+        : alignment === 'center'
+          ? { x: Number(((state.size.width - selectedLayer.width) / 2).toFixed(1)) }
+          : alignment === 'right'
+            ? {
+                x: Number(
+                  (state.size.width - selectedLayer.width - 24).toFixed(1),
+                ),
+              }
+            : alignment === 'top'
+              ? { y: 24 }
+              : alignment === 'middle'
+                ? {
+                    y: Number(
+                      ((state.size.height - selectedLayer.height) / 2).toFixed(1),
+                    ),
+                  }
+                : {
+                    y: Number(
+                      (state.size.height - selectedLayer.height - 24).toFixed(1),
+                    ),
+                  }
+
+    handleLayerUpdate(patch)
   }
 
   const templateSelectValue = useMemo(() => {
@@ -373,6 +423,19 @@ function App() {
           })
         }
 
+        if (active.mode === 'resize-text') {
+          if (!isTextLayer(layer)) {
+            return current
+          }
+
+          const deltaX = (event.clientX - active.startPointerX) / previewScale
+          const maxWidth = current.size.width - active.originX - 24
+
+          return updateLayer(current, layer.id, {
+            width: Number(clamp(active.startWidth + deltaX, 120, maxWidth).toFixed(1)),
+          })
+        }
+
         if (!isImageLayer(layer)) {
           return current
         }
@@ -475,6 +538,7 @@ function App() {
 
     if (value.startsWith('builtin:')) {
       const templateId = value.replace('builtin:', '') as BuiltinTemplateId
+      setTemplateDraft('')
       setState((current) => setBuiltinTemplate(current, templateId))
       return
     }
@@ -730,9 +794,29 @@ function App() {
     setState((current) => selectLayer(current, layer.id))
   }
 
+  const startResizeText = (
+    event: React.PointerEvent<HTMLButtonElement>,
+    layer: TextLayer,
+  ) => {
+    event.stopPropagation()
+    event.preventDefault()
+    event.currentTarget.setPointerCapture?.(event.pointerId)
+    setEditingTextLayerId(null)
+    beginHistoryTransaction()
+
+    interactionRef.current = {
+      mode: 'resize-text',
+      layerId: layer.id,
+      startPointerX: event.clientX,
+      startWidth: layer.width,
+      originX: layer.x,
+    }
+
+    setState((current) => selectLayer(current, layer.id))
+  }
+
   const canvasHeight = Math.round(state.size.height * previewScale)
   const canvasWidth = Math.round(state.size.width * previewScale)
-  const zoomLabel = `${Math.round(previewScale * 100)}%`
   const selectedBackgroundPresetId =
     BACKGROUND_PRESETS.find(
       (preset) =>
@@ -923,10 +1007,16 @@ function App() {
     <div className="studio-shell">
       <header className="topbar">
         <div className="brand">
-          <div className="brand__mark">Q</div>
+          <div className="brand__mark">
+            <img
+              src={brandAvatar}
+              alt="AI学习的章北海头像"
+              className="brand__avatar"
+            />
+          </div>
           <div>
-            <p className="eyebrow">本地复刻版</p>
-            <h1>封面工作台</h1>
+            <p className="eyebrow">AI学习的老章</p>
+            <h1>AI学习的章北海</h1>
           </div>
         </div>
 
@@ -970,6 +1060,18 @@ function App() {
             </select>
           </div>
 
+          <div className="topbar__template-save">
+            <input
+              aria-label="模板名称"
+              value={templateDraft}
+              placeholder="模板名"
+              onChange={(event) => setTemplateDraft(event.target.value)}
+            />
+            <button className="ghost-button" type="button" onClick={handleSaveTemplate}>
+              保存模板
+            </button>
+          </div>
+
           <button
             className="ghost-button"
             type="button"
@@ -990,32 +1092,6 @@ function App() {
             重做
           </button>
 
-          <button className="ghost-button" type="button" onClick={handleAddText}>
-            <Plus size={16} />
-            添加文字
-          </button>
-
-          <label className="ghost-button upload-trigger">
-            <ImagePlus size={16} />
-            添加图片
-            <input
-              aria-label="上传图片"
-              type="file"
-              accept="image/*"
-              onChange={handleAddImage}
-            />
-          </label>
-
-          <button
-            className="ghost-button"
-            type="button"
-            onClick={handleDuplicate}
-            disabled={!selectedLayer}
-          >
-            <Copy size={16} />
-            复制图层
-          </button>
-
           <button
             className="primary-button"
             type="button"
@@ -1030,24 +1106,35 @@ function App() {
 
       <div className="studio-grid">
         <aside className="tool-rail" aria-label="工具栏">
-          <button className="tool-rail__button is-active" type="button">
+          <button
+            className="tool-rail__button is-active"
+            type="button"
+            aria-label="选择工具"
+          >
             <MousePointer2 size={18} />
           </button>
           <button
             className="tool-rail__button"
             type="button"
             onClick={handleAddText}
+            aria-label="添加文字"
           >
             <Type size={18} />
           </button>
           <label className="tool-rail__button tool-rail__label">
             <ImagePlus size={18} />
-            <input type="file" accept="image/*" onChange={handleAddImage} />
+            <input
+              type="file"
+              accept="image/*"
+              aria-label="上传图片"
+              onChange={handleAddImage}
+            />
           </label>
           <button
             className="tool-rail__button"
             type="button"
             onClick={handleDuplicate}
+            aria-label="复制图层"
           >
             <Layers3 size={18} />
           </button>
@@ -1055,18 +1142,13 @@ function App() {
             className="tool-rail__button"
             type="button"
             onClick={handleDelete}
+            aria-label="删除元素"
           >
             <Trash2 size={18} />
           </button>
         </aside>
 
         <main className="workspace">
-          <div className="workspace__status">
-            <strong data-testid="current-template-name">{getTemplateName(state)}</strong>
-            <span>预览 {zoomLabel}</span>
-            <span>Delete 删除 · Cmd+Z 撤销 · 方向键微调</span>
-          </div>
-
           <div className="workspace__viewport" ref={viewportRef}>
             <div
               className="workspace__canvas-stage"
@@ -1203,6 +1285,14 @@ function App() {
                           onDoubleClick={() => handleStartEditingText(layer.id)}
                         >
                           {layer.content}
+                          {isSelected && (
+                            <button
+                              type="button"
+                              aria-label="调整文字宽度"
+                              className="canvas__resize-handle canvas__resize-handle--text"
+                              onPointerDown={(event) => startResizeText(event, layer)}
+                            />
+                          )}
                         </div>
                       )
                     }
@@ -1262,16 +1352,8 @@ function App() {
         <aside className="inspector">
           <div className="panel-stack">
             <section className="panel template-panel template-panel--compact">
-              <div className="template-panel__actions template-panel__actions--row">
-                <input
-                  aria-label="模板名称"
-                  value={templateDraft}
-                  placeholder="模板名"
-                  onChange={(event) => setTemplateDraft(event.target.value)}
-                />
-                <button className="ghost-button" type="button" onClick={handleSaveTemplate}>
-                  保存模板
-                </button>
+              <div className="panel__heading">
+                <h2>我的模板</h2>
               </div>
 
               {customTemplates.length > 0 && (
@@ -1306,6 +1388,10 @@ function App() {
                     </div>
                   ))}
                 </div>
+              )}
+
+              {customTemplates.length === 0 && (
+                <p>保存后的模板会出现在这里。</p>
               )}
 
               <p className="template-panel__status">{statusMessage}</p>
@@ -1411,6 +1497,45 @@ function App() {
                             }
                           />
                         </label>
+                      </div>
+                    </div>
+
+                    <div className="panel-subsection">
+                      <span className="subtle-label">文字对齐</span>
+                      <div className="icon-group">
+                        <button
+                          type="button"
+                          className={
+                            selectedTextLayer.textAlign === 'left'
+                              ? 'is-active'
+                              : ''
+                          }
+                          onClick={() => handleSetTextAlign('left')}
+                        >
+                          左对齐
+                        </button>
+                        <button
+                          type="button"
+                          className={
+                            selectedTextLayer.textAlign === 'center'
+                              ? 'is-active'
+                              : ''
+                          }
+                          onClick={() => handleSetTextAlign('center')}
+                        >
+                          居中对齐
+                        </button>
+                        <button
+                          type="button"
+                          className={
+                            selectedTextLayer.textAlign === 'right'
+                              ? 'is-active'
+                              : ''
+                          }
+                          onClick={() => handleSetTextAlign('right')}
+                        >
+                          右对齐
+                        </button>
                       </div>
                     </div>
 
@@ -1731,6 +1856,30 @@ function App() {
                       >
                         置底
                       </button>
+                    </div>
+
+                    <div className="panel-subsection">
+                      <span className="subtle-label">对齐画布</span>
+                      <div className="icon-group">
+                        <button type="button" onClick={() => handleAlignLayerToCanvas('left')}>
+                          靠左
+                        </button>
+                        <button type="button" onClick={() => handleAlignLayerToCanvas('center')}>
+                          水平居中
+                        </button>
+                        <button type="button" onClick={() => handleAlignLayerToCanvas('right')}>
+                          靠右
+                        </button>
+                        <button type="button" onClick={() => handleAlignLayerToCanvas('top')}>
+                          靠上
+                        </button>
+                        <button type="button" onClick={() => handleAlignLayerToCanvas('middle')}>
+                          垂直居中
+                        </button>
+                        <button type="button" onClick={() => handleAlignLayerToCanvas('bottom')}>
+                          靠下
+                        </button>
+                      </div>
                     </div>
                   </section>
                 )}

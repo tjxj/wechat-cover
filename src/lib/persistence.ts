@@ -1,5 +1,6 @@
 import { createStore, del, get, set } from 'idb-keyval'
 import {
+  isTextLayer,
   normalizeEditorState,
   type EditorState,
   type UserTemplate,
@@ -14,6 +15,23 @@ interface WorkspacePayload {
   templates: UserTemplate[]
 }
 
+const BRANDING_REPLACEMENTS: Record<string, string> = {
+  '乔木封面实验室': 'AI学习的老章',
+  'LOCAL DEMO': 'AI学习的老章',
+}
+
+const migrateLegacyBranding = (state: EditorState): EditorState => ({
+  ...state,
+  layers: state.layers.map((layer) =>
+    isTextLayer(layer) && BRANDING_REPLACEMENTS[layer.content]
+      ? {
+          ...layer,
+          content: BRANDING_REPLACEMENTS[layer.content],
+        }
+      : layer,
+  ),
+})
+
 export const loadWorkspace = async (): Promise<WorkspacePayload> => {
   const [currentState, templates] = await Promise.all([
     get<EditorState>(CURRENT_STATE_KEY, workspaceStore),
@@ -21,11 +39,13 @@ export const loadWorkspace = async (): Promise<WorkspacePayload> => {
   ])
 
   return {
-    currentState: currentState ? normalizeEditorState(currentState) : null,
+    currentState: currentState
+      ? normalizeEditorState(migrateLegacyBranding(currentState))
+      : null,
     templates:
       templates?.map((template) => ({
         ...template,
-        snapshot: normalizeEditorState(template.snapshot),
+        snapshot: normalizeEditorState(migrateLegacyBranding(template.snapshot)),
       })) ?? [],
   }
 }
