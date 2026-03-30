@@ -19,6 +19,8 @@ describe('App', () => {
     expect(
       screen.getByRole('button', { name: '下载 PNG' }),
     ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '撤销' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '重做' })).toBeDisabled()
     expect(screen.queryByText('尺寸')).not.toBeInTheDocument()
     expect(screen.queryByText('模板')).not.toBeInTheDocument()
     expect(screen.queryByText('本地运行')).not.toBeInTheDocument()
@@ -117,6 +119,8 @@ describe('App', () => {
 
     expect(textLayer).toHaveStyle({ background: 'transparent' })
     expect(textLayer.style.webkitTextStroke).toBe('')
+    expect(window.getComputedStyle(textLayer).boxShadow).toBe('none')
+    expect(window.getComputedStyle(textLayer).paddingTop).toBe('0px')
   })
 
   it('deletes the selected layer with the keyboard delete key on mac', async () => {
@@ -128,6 +132,36 @@ describe('App', () => {
     fireEvent.keyDown(window, { key: 'Backspace' })
 
     expect(screen.getAllByLabelText(/文字图层/)).toHaveLength(beforeCount - 1)
+  })
+
+  it('undoes and redoes editor changes after deleting a layer', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    const beforeCount = screen.getAllByLabelText(/文字图层/).length
+
+    await user.click(screen.getByLabelText('文字图层 1'))
+    fireEvent.keyDown(window, { key: 'Backspace' })
+    expect(screen.getAllByLabelText(/文字图层/)).toHaveLength(beforeCount - 1)
+
+    await user.click(screen.getByRole('button', { name: '撤销' }))
+    expect(screen.getAllByLabelText(/文字图层/)).toHaveLength(beforeCount)
+
+    await user.click(screen.getByRole('button', { name: '重做' }))
+    expect(screen.getAllByLabelText(/文字图层/)).toHaveLength(beforeCount - 1)
+  })
+
+  it('nudges the selected layer with arrow keys for fine positioning', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    const textLayer = screen.getByLabelText('文字图层 1')
+
+    await user.click(textLayer)
+    fireEvent.keyDown(window, { key: 'ArrowRight' })
+    fireEvent.keyDown(window, { key: 'ArrowDown', shiftKey: true })
+
+    expect(textLayer).toHaveStyle({ left: '109px', top: '190px' })
   })
 
   it('shows advanced text controls and layer order actions', async () => {

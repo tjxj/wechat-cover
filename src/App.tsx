@@ -7,6 +7,8 @@ import {
   Layers3,
   MousePointer2,
   Plus,
+  RotateCcw,
+  RotateCw,
   Trash2,
   Type,
 } from 'lucide-react'
@@ -96,6 +98,21 @@ const TEXT_FRAME_SWATCHES = [
   'rgba(191,219,254,0.84)',
   'rgba(244,114,182,0.24)',
 ]
+const MAX_HISTORY_STEPS = 80
+
+const cloneEditorState = (value: EditorState): EditorState =>
+  JSON.parse(JSON.stringify(value)) as EditorState
+
+const getHistorySignature = (value: EditorState) =>
+  JSON.stringify({
+    ...value,
+    selectedLayerId: '',
+  })
+
+const appendHistorySnapshot = (
+  history: EditorState[],
+  snapshot: EditorState,
+) => [...history.slice(-(MAX_HISTORY_STEPS - 1)), cloneEditorState(snapshot)]
 
 const readFileAsDataUrl = (file: File) =>
   new Promise<string>((resolve, reject) => {
@@ -120,6 +137,8 @@ const getImageDimensions = (src: string) =>
 function App() {
   const [state, setState] = useState<EditorState>(defaultState)
   const [customTemplates, setCustomTemplates] = useState<UserTemplate[]>([])
+  const [historyPast, setHistoryPast] = useState<EditorState[]>([])
+  const [historyFuture, setHistoryFuture] = useState<EditorState[]>([])
   const [editingTextLayerId, setEditingTextLayerId] = useState<string | null>(null)
   const [activeInspectorTab, setActiveInspectorTab] = useState<
     'style' | 'layer' | 'background'
@@ -136,6 +155,13 @@ function App() {
   const canvasTextEditorRef = useRef<HTMLTextAreaElement | null>(null)
   const interactionRef = useRef<InteractionState | null>(null)
   const saveTimerRef = useRef<number | null>(null)
+  const stateRef = useRef<EditorState>(cloneEditorState(defaultState))
+  const previousStateRef = useRef<EditorState>(cloneEditorState(defaultState))
+  const skipHistoryRef = useRef(false)
+  const historyTransactionRef = useRef<{
+    snapshot: EditorState
+    signature: string
+  } | null>(null)
 
   const selectedLayer =
     state.layers.find((layer) => layer.id === state.selectedLayerId) ??
@@ -148,6 +174,45 @@ function App() {
   const selectedLayerIndex = selectedLayer
     ? state.layers.findIndex((layer) => layer.id === selectedLayer.id)
     : -1
+
+  const beginHistoryTransaction = () => {
+    if (historyTransactionRef.current) {
+      return
+    }
+
+    const snapshot = cloneEditorState(stateRef.current)
+    historyTransactionRef.current = {
+      snapshot,
+      signature: getHistorySignature(snapshot),
+    }
+  }
+
+  const endHistoryTransaction = () => {
+    const transaction = historyTransactionRef.current
+
+    if (!transaction) {
+      return
+    }
+
+    historyTransactionRef.current = null
+
+    const currentSnapshot = cloneEditorState(stateRef.current)
+
+    if (transaction.signature !== getHistorySignature(currentSnapshot)) {
+      setHistoryPast((current) =>
+        appendHistorySnapshot(current, transaction.snapshot),
+      )
+      setHistoryFuture([])
+    }
+
+    previousStateRef.current = currentSnapshot
+  }
+
+  const replaceStateWithoutHistory = (nextState: EditorState) => {
+    skipHistoryRef.current = true
+    previousStateRef.current = cloneEditorState(nextState)
+    setState(nextState)
+  }
 
   const templateSelectValue = useMemo(() => {
     if (
@@ -163,6 +228,10 @@ function App() {
   }, [customTemplates, state.templateId, state.templateSource])
 
   useEffect(() => {
+    stateRef.current = state
+  }, [state])
+
+  useEffect(() => {
     let cancelled = false
 
     const hydrate = async () => {
@@ -175,6 +244,8 @@ function App() {
       setCustomTemplates(workspace.templates)
 
       if (workspace.currentState) {
+        skipHistoryRef.current = true
+        previousStateRef.current = cloneEditorState(workspace.currentState)
         setState(workspace.currentState)
         if (workspace.currentState.templateSource === 'custom') {
           setTemplateDraft(workspace.currentState.templateName)
@@ -190,6 +261,33 @@ function App() {
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    if (!isHydrated) {
+      previousStateRef.current = cloneEditorState(state)
+      return
+    }
+
+    const previousState = previousStateRef.current
+
+    if (skipHistoryRef.current) {
+      skipHistoryRef.current = false
+      previousStateRef.current = cloneEditorState(state)
+      return
+    }
+
+    if (historyTransactionRef.current) {
+      previousStateRef.current = cloneEditorState(state)
+      return
+    }
+
+    if (getHistorySignature(previousState) !== getHistorySignature(state)) {
+      setHistoryPast((current) => appendHistorySnapshot(current, previousState))
+      setHistoryFuture([])
+    }
+
+    previousStateRef.current = cloneEditorState(state)
+  }, [isHydrated, state])
 
   useEffect(() => {
     if (!isHydrated) {
@@ -319,7 +417,30 @@ function App() {
     }
 
     const handlePointerUp = () => {
+      if (!interactionRef.current) {
+        return
+      }
+
       interactionRef.current = null
+
+      const transaction = historyTransactionRef.current
+
+      if (!transaction) {
+        return
+      }
+
+      historyTransactionRef.current = null
+
+      const currentSnapshot = cloneEditorState(stateRef.current)
+
+      if (transaction.signature !== getHistorySignature(currentSnapshot)) {
+        setHistoryPast((current) =>
+          appendHistorySnapshot(current, transaction.snapshot),
+        )
+        setHistoryFuture([])
+      }
+
+      previousStateRef.current = currentSnapshot
     }
 
     window.addEventListener('pointermove', handlePointerMove)
@@ -349,6 +470,7 @@ function App() {
   }, [editingTextLayerId, state.layers])
 
   const handleSelectTemplate = (value: string) => {
+    endHistoryTransaction()
     setEditingTextLayerId(null)
 
     if (value.startsWith('builtin:')) {
@@ -370,11 +492,13 @@ function App() {
   }
 
   const handleSelectSize = (value: string) => {
+    endHistoryTransaction()
     setEditingTextLayerId(null)
     setState((current) => resizeState(current, value as SizeId))
   }
 
   const handleAddText = () => {
+    endHistoryTransaction()
     setEditingTextLayerId(null)
     setActiveInspectorTab('style')
     setState((current) => addTextBlock(current))
@@ -390,6 +514,7 @@ function App() {
       return
     }
 
+    endHistoryTransaction()
     setEditingTextLayerId(null)
     setActiveInspectorTab('style')
     const src = await readFileAsDataUrl(file)
@@ -412,6 +537,7 @@ function App() {
       return
     }
 
+    endHistoryTransaction()
     setEditingTextLayerId(null)
     setState((current) => duplicateLayer(current, selectedLayer.id))
   }
@@ -421,9 +547,50 @@ function App() {
       return
     }
 
+    endHistoryTransaction()
     setEditingTextLayerId(null)
     setState((current) => removeLayer(current, selectedLayer.id))
     setStatusMessage('已删除当前选中的元素。')
+  }
+
+  const handleUndo = () => {
+    endHistoryTransaction()
+
+    const previousSnapshot = historyPast[historyPast.length - 1]
+
+    if (!previousSnapshot) {
+      return
+    }
+
+    const currentSnapshot = cloneEditorState(stateRef.current)
+    setEditingTextLayerId(null)
+    setHistoryPast((current) => current.slice(0, -1))
+    setHistoryFuture((current) => [
+      ...current.slice(-(MAX_HISTORY_STEPS - 1)),
+      currentSnapshot,
+    ])
+    replaceStateWithoutHistory(cloneEditorState(previousSnapshot))
+    setStatusMessage('已撤销上一步。')
+  }
+
+  const handleRedo = () => {
+    endHistoryTransaction()
+
+    const nextSnapshot = historyFuture[historyFuture.length - 1]
+
+    if (!nextSnapshot) {
+      return
+    }
+
+    const currentSnapshot = cloneEditorState(stateRef.current)
+    setEditingTextLayerId(null)
+    setHistoryFuture((current) => current.slice(0, -1))
+    setHistoryPast((current) => [
+      ...current.slice(-(MAX_HISTORY_STEPS - 1)),
+      currentSnapshot,
+    ])
+    replaceStateWithoutHistory(cloneEditorState(nextSnapshot))
+    setStatusMessage('已恢复刚才撤销的内容。')
   }
 
   const handleExport = async () => {
@@ -452,6 +619,7 @@ function App() {
   }
 
   const handleSaveTemplate = async () => {
+    endHistoryTransaction()
     setEditingTextLayerId(null)
     const name = templateDraft.trim() || `${state.templateName} 模板`
     const template = createCustomTemplate(name, state)
@@ -464,6 +632,7 @@ function App() {
   }
 
   const handleDeleteTemplate = async (templateId: string, templateName: string) => {
+    endHistoryTransaction()
     setEditingTextLayerId(null)
     const templates = await deleteCustomTemplate(templateId)
     setCustomTemplates(templates)
@@ -485,16 +654,19 @@ function App() {
       return
     }
 
+    endHistoryTransaction()
     setState((current) => updateLayer(current, selectedLayer.id, patch))
   }
 
   const handleSelectLayer = (layerId: string) => {
+    endHistoryTransaction()
     setEditingTextLayerId(null)
     setActiveInspectorTab('style')
     setState((current) => selectLayer(current, layerId))
   }
 
   const handleStartEditingText = (layerId: string) => {
+    beginHistoryTransaction()
     setState((current) => selectLayer(current, layerId))
     setEditingTextLayerId(layerId)
   }
@@ -513,6 +685,7 @@ function App() {
     event.preventDefault()
     event.currentTarget.setPointerCapture?.(event.pointerId)
     setEditingTextLayerId(null)
+    beginHistoryTransaction()
 
     if (!canvasRef.current) {
       return
@@ -540,6 +713,7 @@ function App() {
     event.preventDefault()
     event.currentTarget.setPointerCapture?.(event.pointerId)
     setEditingTextLayerId(null)
+    beginHistoryTransaction()
 
     interactionRef.current = {
       mode: 'resize',
@@ -577,6 +751,109 @@ function App() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      const undo = () => {
+        const transaction = historyTransactionRef.current
+
+        if (transaction) {
+          historyTransactionRef.current = null
+
+          const currentSnapshot = cloneEditorState(stateRef.current)
+
+          if (transaction.signature !== getHistorySignature(currentSnapshot)) {
+            setHistoryPast((current) =>
+              appendHistorySnapshot(current, transaction.snapshot),
+            )
+            setHistoryFuture([])
+          }
+
+          previousStateRef.current = currentSnapshot
+        }
+
+        const previousSnapshot = historyPast[historyPast.length - 1]
+
+        if (!previousSnapshot) {
+          return
+        }
+
+        const currentSnapshot = cloneEditorState(stateRef.current)
+        setEditingTextLayerId(null)
+        setHistoryPast((current) => current.slice(0, -1))
+        setHistoryFuture((current) => [
+          ...current.slice(-(MAX_HISTORY_STEPS - 1)),
+          currentSnapshot,
+        ])
+        const nextState = cloneEditorState(previousSnapshot)
+        skipHistoryRef.current = true
+        previousStateRef.current = cloneEditorState(nextState)
+        setState(nextState)
+        setStatusMessage('已撤销上一步。')
+      }
+
+      const redo = () => {
+        const transaction = historyTransactionRef.current
+
+        if (transaction) {
+          historyTransactionRef.current = null
+
+          const currentSnapshot = cloneEditorState(stateRef.current)
+
+          if (transaction.signature !== getHistorySignature(currentSnapshot)) {
+            setHistoryPast((current) =>
+              appendHistorySnapshot(current, transaction.snapshot),
+            )
+            setHistoryFuture([])
+          }
+
+          previousStateRef.current = currentSnapshot
+        }
+
+        const nextSnapshot = historyFuture[historyFuture.length - 1]
+
+        if (!nextSnapshot) {
+          return
+        }
+
+        const currentSnapshot = cloneEditorState(stateRef.current)
+        setEditingTextLayerId(null)
+        setHistoryFuture((current) => current.slice(0, -1))
+        setHistoryPast((current) => [
+          ...current.slice(-(MAX_HISTORY_STEPS - 1)),
+          currentSnapshot,
+        ])
+        const nextState = cloneEditorState(nextSnapshot)
+        skipHistoryRef.current = true
+        previousStateRef.current = cloneEditorState(nextState)
+        setState(nextState)
+        setStatusMessage('已恢复刚才撤销的内容。')
+      }
+
+      const isUndoCommand =
+        (event.metaKey || event.ctrlKey) &&
+        !event.altKey &&
+        event.key.toLowerCase() === 'z'
+      const isRedoCommand =
+        ((event.metaKey || event.ctrlKey) &&
+          !event.altKey &&
+          event.shiftKey &&
+          event.key.toLowerCase() === 'z') ||
+        (event.ctrlKey && !event.metaKey && !event.altKey && event.key === 'y')
+
+      if (isUndoCommand || isRedoCommand) {
+        if (event.defaultPrevented || isEditableTarget(event.target)) {
+          return
+        }
+
+        event.preventDefault()
+
+        if (isRedoCommand) {
+          redo()
+          return
+        }
+
+        undo()
+        return
+      }
+
       if (
         !selectedLayer ||
         editingTextLayerId ||
@@ -589,20 +866,58 @@ function App() {
         return
       }
 
-      if (event.key !== 'Backspace' && event.key !== 'Delete') {
+      if (event.key === 'Backspace' || event.key === 'Delete') {
+        event.preventDefault()
+        setEditingTextLayerId(null)
+        setState((current) => removeLayer(current, selectedLayer.id))
+        setStatusMessage('已删除当前选中的元素。')
         return
       }
 
-      event.preventDefault()
-      setEditingTextLayerId(null)
-      setState((current) => removeLayer(current, selectedLayer.id))
-      setStatusMessage('已删除当前选中的元素。')
+      if (
+        event.key === 'ArrowUp' ||
+        event.key === 'ArrowDown' ||
+        event.key === 'ArrowLeft' ||
+        event.key === 'ArrowRight'
+      ) {
+        const step = event.shiftKey ? 10 : 1
+        const deltaX =
+          event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0
+        const deltaY =
+          event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0
+
+        event.preventDefault()
+        setState((current) => {
+          const layer = getLayerById(current, selectedLayer.id)
+
+          if (!layer) {
+            return current
+          }
+
+          return updateLayer(current, layer.id, {
+            x: Number(
+              clamp(
+                layer.x + deltaX,
+                24,
+                current.size.width - layer.width - 24,
+              ).toFixed(1),
+            ),
+            y: Number(
+              clamp(
+                layer.y + deltaY,
+                24,
+                current.size.height - layer.height - 24,
+              ).toFixed(1),
+            ),
+          })
+        })
+      }
     }
 
     window.addEventListener('keydown', handleKeyDown)
 
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [editingTextLayerId, selectedLayer])
+  }, [editingTextLayerId, historyFuture, historyPast, selectedLayer])
 
   return (
     <div className="studio-shell">
@@ -654,6 +969,26 @@ function App() {
               )}
             </select>
           </div>
+
+          <button
+            className="ghost-button"
+            type="button"
+            onClick={handleUndo}
+            disabled={historyPast.length === 0}
+          >
+            <RotateCcw size={16} />
+            撤销
+          </button>
+
+          <button
+            className="ghost-button"
+            type="button"
+            onClick={handleRedo}
+            disabled={historyFuture.length === 0}
+          >
+            <RotateCw size={16} />
+            重做
+          </button>
 
           <button className="ghost-button" type="button" onClick={handleAddText}>
             <Plus size={16} />
@@ -729,6 +1064,7 @@ function App() {
           <div className="workspace__status">
             <strong data-testid="current-template-name">{getTemplateName(state)}</strong>
             <span>预览 {zoomLabel}</span>
+            <span>Delete 删除 · Cmd+Z 撤销 · 方向键微调</span>
           </div>
 
           <div className="workspace__viewport" ref={viewportRef}>
@@ -791,6 +1127,12 @@ function App() {
                           layer.shadowBlur > 0
                             ? `0 ${Math.max(1, layer.shadowBlur / 4).toFixed(1)}px ${layer.shadowBlur}px ${layer.shadowColor}`
                             : 'none',
+                        boxShadow:
+                          layer.background === 'transparent' ? 'none' : undefined,
+                        padding:
+                          layer.background === 'transparent' ? '0px' : undefined,
+                        borderRadius:
+                          layer.background === 'transparent' ? '0px' : undefined,
                       }
 
                       if (isEditing) {
@@ -824,11 +1166,13 @@ function App() {
                             }
                             onBlur={() => {
                               if (editingTextLayerId === layer.id) {
+                                endHistoryTransaction()
                                 setEditingTextLayerId(null)
                               }
                             }}
                             onKeyDown={(event) => {
                               if (event.key === 'Escape') {
+                                endHistoryTransaction()
                                 setEditingTextLayerId(null)
                                 event.currentTarget.blur()
                               }
