@@ -11,7 +11,7 @@ import {
   Trash2,
   Type,
 } from 'lucide-react'
-import brandAvatar from './assets/laozhang-avatar.svg'
+const brandAvatar = '/IMG.png'
 import './App.css'
 import {
   addImageLayer,
