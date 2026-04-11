@@ -1,4 +1,176 @@
-@import url("https://fonts.googleapis.com/css2?family=Long+Cang&family=Ma+Shan+Zheng&family=Noto+Sans+SC:wght@400;500;700;800;900&family=Noto+Serif+SC:wght@400;500;600;700;800;900&family=ZCOOL+XiaoWei&display=swap");
+@font-face {
+  font-family: "Source Han Serif SC Local";
+  src: url("/fonts/custom/SourceHanSerifSC-VF-user.woff2") format("woff2");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "LXGW WenKai Local";
+  src: url("/fonts/custom/LXGWWenKai-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "LXGW WenKai Local";
+  src: url("/fonts/custom/LXGWWenKai-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Zhuque Fangsong Local";
+  src: url("/fonts/custom/ZhuqueFangsong-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Smiley Sans Local";
+  src: url("/fonts/custom/SmileySans-Oblique.woff2") format("woff2");
+  font-style: oblique;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "KingHwa OldSong Local";
+  src: url("/fonts/custom/KingHwa-OldSong.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Early Summer Serif Local";
+  src: url("/fonts/custom/EarlySummerSerif-ExtraLight.woff2") format("woff2");
+  font-weight: 200;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Early Summer Serif Local";
+  src: url("/fonts/custom/EarlySummerSerif-Light.woff2") format("woff2");
+  font-weight: 300;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Early Summer Serif Local";
+  src: url("/fonts/custom/EarlySummerSerif-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Early Summer Serif Local";
+  src: url("/fonts/custom/EarlySummerSerif-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Early Summer Serif Local";
+  src: url("/fonts/custom/EarlySummerSerif-SemiBold.woff2") format("woff2");
+  font-weight: 600;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Early Summer Serif Local";
+  src: url("/fonts/custom/EarlySummerSerif-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Early Summer Serif Local";
+  src: url("/fonts/custom/EarlySummerSerif-Heavy.woff2") format("woff2");
+  font-weight: 800;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Alibaba PuHuiTi 2 Local";
+  src: url("/fonts/custom/AlibabaPuHuiTi-2-35-Thin.woff2") format("woff2");
+  font-weight: 200;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Alibaba PuHuiTi 2 Local";
+  src: url("/fonts/custom/AlibabaPuHuiTi-2-45-Light.woff2") format("woff2");
+  font-weight: 300;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Alibaba PuHuiTi 2 Local";
+  src: url("/fonts/custom/AlibabaPuHuiTi-2-55-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Alibaba PuHuiTi 2 Local";
+  src: url("/fonts/custom/AlibabaPuHuiTi-2-65-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Alibaba PuHuiTi 2 Local";
+  src: url("/fonts/custom/AlibabaPuHuiTi-2-75-SemiBold.woff2") format("woff2");
+  font-weight: 600;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Alibaba PuHuiTi 2 Local";
+  src: url("/fonts/custom/AlibabaPuHuiTi-2-85-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Alibaba PuHuiTi 2 Local";
+  src: url("/fonts/custom/AlibabaPuHuiTi-2-95-ExtraBold.woff2") format("woff2");
+  font-weight: 800;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Alibaba PuHuiTi 2 Local";
+  src: url("/fonts/custom/AlibabaPuHuiTi-2-105-Heavy.woff2") format("woff2");
+  font-weight: 850;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Alibaba PuHuiTi 2 Local";
+  src: url("/fonts/custom/AlibabaPuHuiTi-2-115-Black.woff2") format("woff2");
+  font-weight: 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Alibaba PuHuiTi 3 Local";
+  src: url("/fonts/custom/AlibabaPuHuiTi-3-35-Thin.woff2") format("woff2");
+  font-weight: 200;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Alibaba PuHuiTi 3 Local";
+  src: url("/fonts/custom/AlibabaPuHuiTi-3-65-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Alibaba PuHuiTi 3 Local";
+  src: url("/fonts/custom/AlibabaPuHuiTi-3-115-Black.woff2") format("woff2");
+  font-weight: 900;
+  font-display: swap;
+}
 
 :root {
   color-scheme: light;
@@ -10,7 +182,7 @@
     radial-gradient(circle at top, rgba(255, 255, 255, 0.88), transparent 26%),
     linear-gradient(180deg, #f6f2e8 0%, #ebe4d7 100%);
   font:
-    16px/1.5 "Noto Serif SC", "Songti SC", "STSong", serif;
+    16px/1.5 "Source Han Serif SC Local", "Songti SC", "STSong", serif;
   color: var(--ink);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
