@@ -112,18 +112,24 @@ describe('App', () => {
     expect(screen.queryByRole('button', { name: '纯色背景 #f7f0dc' })).not.toBeInTheDocument()
   })
 
-  it('offers curated online fonts and editorial grid backgrounds', async () => {
+  it('offers curated local fonts and editorial grid backgrounds', async () => {
     const user = userEvent.setup()
     render(<App />)
 
     expect(
-      screen.getByRole('option', { name: 'Noto Serif SC 编辑宋体' }),
+      screen.getByRole('option', { name: '思源宋体 VF' }),
     ).toBeInTheDocument()
     expect(
-      screen.getByRole('option', { name: 'Noto Sans SC 现代黑体' }),
+      screen.getByRole('option', { name: '阿里普惠体 2' }),
     ).toBeInTheDocument()
     expect(
-      screen.getByRole('option', { name: 'Ma Shan Zheng 手写标题' }),
+      screen.getByRole('option', { name: '霞鹜文楷' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('option', { name: '朱雀仿宋' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('option', { name: 'Early Summer Serif' }),
     ).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: '背景' }))
@@ -266,12 +272,12 @@ describe('App', () => {
 
     const textLayer = screen.getByLabelText('文字图层 1')
 
-    await user.click(screen.getByRole('button', { name: '常规' }))
+    await user.selectOptions(screen.getByLabelText('字重'), '400')
     await user.click(screen.getByRole('button', { name: '斜体' }))
     await user.click(screen.getByRole('button', { name: '下划线' }))
     await user.click(screen.getByRole('button', { name: '删除线' }))
 
-    expect(textLayer).toHaveStyle({ fontWeight: '500' })
+    expect(textLayer).toHaveStyle({ fontWeight: '400' })
     expect(textLayer).toHaveStyle({ fontStyle: 'italic' })
     expect(textLayer.style.textDecoration).toBe('underline line-through')
   })

@@ -15,11 +15,14 @@ export type BuiltinTemplateId =
 export type TemplateId = string
 export type TemplateSource = 'builtin' | 'custom'
 export type FontId =
-  | 'sans'
   | 'serif'
+  | 'sans'
   | 'display'
   | 'handwritten'
   | 'brush'
+  | 'fangsong'
+  | 'summer'
+  | 'puhui3'
 export type TextAlign = 'left' | 'center' | 'right'
 export type LayerAlignment =
   | 'left'
@@ -45,6 +48,7 @@ export interface CanvasBackground {
   panel: string
   texture: string
   textureSize?: string
+  texturePosition?: string
 }
 
 interface BaseLayer {
@@ -291,7 +295,7 @@ const normalizeTextLayer = (layer: TextLayer): TextLayer => {
     width,
     lineHeight,
     letterSpacing,
-    weight: Number(Math.min(Math.max(layer.weight ?? 700, 400), 900).toFixed(0)),
+    weight: Number(Math.min(Math.max(layer.weight ?? 700, 200), 900).toFixed(0)),
     italic: Boolean(layer.italic),
     underline: Boolean(layer.underline),
     strikethrough: Boolean(layer.strikethrough),
@@ -370,33 +374,51 @@ export const SIZE_PRESETS: CanvasSize[] = [
 export const FONT_PRESETS = [
   {
     id: 'serif',
-    name: 'Noto Serif SC 编辑宋体',
+    name: '思源宋体 VF',
     family:
-      '"Noto Serif SC", "Songti SC", "STSong", "Source Han Serif SC", serif',
+      '"Source Han Serif SC Local", "Source Han Serif SC", "Songti SC", "STSong", serif',
   },
   {
     id: 'sans',
-    name: 'Noto Sans SC 现代黑体',
+    name: '阿里普惠体 2',
     family:
-      '"Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif',
+      '"Alibaba PuHuiTi 2 Local", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif',
   },
   {
     id: 'display',
-    name: 'ZCOOL XiaoWei 海报标题',
+    name: '京华老宋体',
     family:
-      '"ZCOOL XiaoWei", "Noto Serif SC", serif',
+      '"KingHwa OldSong Local", "Source Han Serif SC Local", serif',
   },
   {
     id: 'handwritten',
-    name: 'Ma Shan Zheng 手写标题',
+    name: '霞鹜文楷',
     family:
-      '"Ma Shan Zheng", "Noto Serif SC", cursive',
+      '"LXGW WenKai Local", "Kaiti SC", "STKaiti", serif',
   },
   {
     id: 'brush',
-    name: 'Long Cang 泼墨字',
+    name: 'Smiley Sans 倾斜黑',
     family:
-      '"Long Cang", "Noto Sans SC", cursive',
+      '"Smiley Sans Local", "Alibaba PuHuiTi 2 Local", sans-serif',
+  },
+  {
+    id: 'fangsong',
+    name: '朱雀仿宋',
+    family:
+      '"Zhuque Fangsong Local", "FangSong", "STFangsong", serif',
+  },
+  {
+    id: 'summer',
+    name: 'Early Summer Serif',
+    family:
+      '"Early Summer Serif Local", "KingHwa OldSong Local", serif',
+  },
+  {
+    id: 'puhui3',
+    name: '阿里普惠体 3',
+    family:
+      '"Alibaba PuHuiTi 3 Local", "Alibaba PuHuiTi 2 Local", sans-serif',
   },
 ] as const
 
@@ -776,7 +798,9 @@ export const BACKGROUND_PRESETS: BackgroundPreset[] = [
       accent: '#433b2d',
       panel: '#fffdf8',
       texture:
-        'repeating-linear-gradient(0deg, rgba(191,181,159,0.18) 0, rgba(191,181,159,0.18) 1px, transparent 1px, transparent 26px), repeating-linear-gradient(90deg, rgba(191,181,159,0.18) 0, rgba(191,181,159,0.18) 1px, transparent 1px, transparent 26px), linear-gradient(rgba(255,255,255,0.72), rgba(255,255,255,0.2))',
+        'linear-gradient(to right, rgba(193,181,160,0.16) 1px, transparent 1px), linear-gradient(to bottom, rgba(193,181,160,0.16) 1px, transparent 1px), linear-gradient(to right, rgba(126,111,84,0.2) 1px, transparent 1px), linear-gradient(to bottom, rgba(126,111,84,0.2) 1px, transparent 1px), linear-gradient(180deg, rgba(255,255,255,0.8), rgba(255,255,255,0.18))',
+      textureSize: '24px 24px, 24px 24px, 120px 120px, 120px 120px, auto',
+      texturePosition: '-1px -1px, -1px -1px, -1px -1px, -1px -1px, 0 0',
     },
   },
   {
@@ -787,7 +811,9 @@ export const BACKGROUND_PRESETS: BackgroundPreset[] = [
       accent: '#1d4f73',
       panel: '#f8fbff',
       texture:
-        'repeating-linear-gradient(0deg, rgba(106,144,173,0.2) 0, rgba(106,144,173,0.2) 1px, transparent 1px, transparent 24px), repeating-linear-gradient(90deg, rgba(106,144,173,0.2) 0, rgba(106,144,173,0.2) 1px, transparent 1px, transparent 24px), linear-gradient(rgba(255,255,255,0.45), rgba(255,255,255,0.12))',
+        'linear-gradient(to right, rgba(118,155,182,0.18) 1px, transparent 1px), linear-gradient(to bottom, rgba(118,155,182,0.18) 1px, transparent 1px), linear-gradient(to right, rgba(51,102,142,0.24) 1px, transparent 1px), linear-gradient(to bottom, rgba(51,102,142,0.24) 1px, transparent 1px), linear-gradient(180deg, rgba(255,255,255,0.56), rgba(255,255,255,0.14))',
+      textureSize: '20px 20px, 20px 20px, 100px 100px, 100px 100px, auto',
+      texturePosition: '-1px -1px, -1px -1px, -1px -1px, -1px -1px, 0 0',
     },
   },
   {
@@ -798,7 +824,9 @@ export const BACKGROUND_PRESETS: BackgroundPreset[] = [
       accent: '#6b5b45',
       panel: '#ffffff',
       texture:
-        'repeating-linear-gradient(0deg, rgba(219,213,201,0.48) 0, rgba(219,213,201,0.48) 1px, transparent 1px, transparent 28px), repeating-linear-gradient(90deg, rgba(219,213,201,0.48) 0, rgba(219,213,201,0.48) 1px, transparent 1px, transparent 28px)',
+        'linear-gradient(to right, rgba(217,210,198,0.34) 1px, transparent 1px), linear-gradient(to bottom, rgba(217,210,198,0.34) 1px, transparent 1px), linear-gradient(to right, rgba(178,164,143,0.24) 1px, transparent 1px), linear-gradient(to bottom, rgba(178,164,143,0.24) 1px, transparent 1px)',
+      textureSize: '28px 28px, 28px 28px, 140px 140px, 140px 140px',
+      texturePosition: '-1px -1px, -1px -1px, -1px -1px, -1px -1px',
     },
   },
   {
@@ -811,6 +839,7 @@ export const BACKGROUND_PRESETS: BackgroundPreset[] = [
       texture:
         'radial-gradient(circle, rgba(148,163,184,0.32) 1.2px, transparent 1.3px), linear-gradient(rgba(255,255,255,0.55), rgba(255,255,255,0.18))',
       textureSize: '22px 22px, auto',
+      texturePosition: '0 0, 0 0',
     },
   },
   {

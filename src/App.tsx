@@ -799,14 +799,16 @@ function App() {
       (preset) =>
         preset.background.fill === state.background.fill &&
         preset.background.texture === state.background.texture &&
-        preset.background.textureSize === state.background.textureSize,
+        preset.background.textureSize === state.background.textureSize &&
+        preset.background.texturePosition === state.background.texturePosition,
     )?.id ?? null
   const selectedSolidBackgroundPresetId =
     SOLID_BACKGROUND_PRESETS.find(
       (preset) =>
         preset.background.fill === state.background.fill &&
         preset.background.texture === state.background.texture &&
-        preset.background.textureSize === state.background.textureSize,
+        preset.background.textureSize === state.background.textureSize &&
+        preset.background.texturePosition === state.background.texturePosition,
     )?.id ?? null
 
   const textLayers = state.layers.filter(isTextLayer)
@@ -1150,6 +1152,7 @@ function App() {
                     style={{
                       backgroundImage: state.background.texture,
                       backgroundSize: state.background.textureSize,
+                      backgroundPosition: state.background.texturePosition,
                     }}
                   />
                   <div className="canvas__accent" />
@@ -1479,22 +1482,35 @@ function App() {
                     </div>
 
                     <div className="panel-subsection">
-                      <span className="subtle-label">字重</span>
-                      <div className="icon-group">
-                        {([
-                          ['常规', 500],
-                          ['中黑', 700],
-                          ['加粗', 800],
-                        ] as const).map(([label, weight]) => (
-                          <button
-                            key={label}
-                            type="button"
-                            className={selectedTextLayer.weight === weight ? 'is-active' : ''}
-                            onClick={() => handleLayerUpdate({ weight })}
+                      <div className="field-grid">
+                        <label className="field">
+                          <span>字重</span>
+                          <select
+                            aria-label="字重"
+                            value={selectedTextLayer.weight}
+                            onChange={(event) =>
+                              handleLayerUpdate({
+                                weight: Number(event.target.value),
+                              })
+                            }
                           >
-                            {label}
-                          </button>
-                        ))}
+                            {[
+                              ['200', '纤细'],
+                              ['300', '细体'],
+                              ['400', '常规'],
+                              ['500', '中等'],
+                              ['600', '半粗'],
+                              ['700', '粗体'],
+                              ['800', '特粗'],
+                              ['850', '厚黑'],
+                              ['900', '超黑'],
+                            ].map(([value, label]) => (
+                              <option key={value} value={value}>
+                                {value} · {label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
                       </div>
                     </div>
 
