@@ -16,21 +16,29 @@ import './App.css'
 import {
   addImageLayer,
   addTextBlock,
+  alignLayerToCanvas,
+  alignLayerToReference,
+  alignSelectedLayers,
   applyCustomTemplate,
   BACKGROUND_PRESETS,
   bringLayerToFront,
   COLOR_SWATCHES,
   createCustomTemplate,
   createEditorState,
+  duplicateLayers,
   duplicateLayer,
   FONT_LOOKUP,
   FONT_PRESETS,
+  getLayerPositionSnapshot,
   getLayerById,
+  getPrimarySelectedLayerId,
+  getSelectedLayerIds,
   isImageLayer,
   isTextLayer,
+  moveSelectedLayers,
   moveLayerBackward,
   moveLayerForward,
-  removeLayer,
+  removeLayers,
   resizeState,
   sendLayerToBack,
   selectLayer,
@@ -46,6 +54,7 @@ import {
   type FontId,
   type ImageLayer,
   type ImageShape,
+  type LayerAlignment,
   type SizeId,
   type TextAlign,
   type TextLayer,
@@ -61,9 +70,10 @@ import {
 type InteractionState =
   | {
       mode: 'move'
-      layerId: string
-      offsetX: number
-      offsetY: number
+      layerIds: string[]
+      startPointerX: number
+      startPointerY: number
+      baseSnapshot: ReturnType<typeof getLayerPositionSnapshot>
     }
   | {
       mode: 'resize'
@@ -115,6 +125,7 @@ const getHistorySignature = (value: EditorState) =>
   JSON.stringify({
     ...value,
     selectedLayerId: '',
+    selectedLayerIds: [],
   })
 
 const appendHistorySnapshot = (
@@ -151,6 +162,7 @@ function App() {
   const [activeInspectorTab, setActiveInspectorTab] = useState<
     'style' | 'layer' | 'background'
   >('style')
+  const [alignmentReferenceId, setAlignmentReferenceId] = useState<string>('')
   const [exporting, setExporting] = useState(false)
   const [templateDraft, setTemplateDraft] = useState('')
   const [statusMessage, setStatusMessage] = useState(
@@ -162,6 +174,7 @@ function App() {
   const canvasRef = useRef<HTMLDivElement | null>(null)
   const canvasTextEditorRef = useRef<HTMLTextAreaElement | null>(null)
   const interactionRef = useRef<InteractionState | null>(null)
+  const shiftSelectionHandledRef = useRef(false)
   const saveTimerRef = useRef<number | null>(null)
   const stateRef = useRef<EditorState>(cloneEditorState(defaultState))
   const previousStateRef = useRef<EditorState>(cloneEditorState(defaultState))
@@ -171,10 +184,13 @@ function App() {
     signature: string
   } | null>(null)
 
+  const selectedLayerIds = getSelectedLayerIds(state)
+  const primarySelectedLayerId = getPrimarySelectedLayerId(state)
   const selectedLayer =
-    state.layers.find((layer) => layer.id === state.selectedLayerId) ??
+    state.layers.find((layer) => layer.id === primarySelectedLayerId) ??
     state.layers[0] ??
     null
+  const isMultiSelection = selectedLayerIds.length > 1
   const selectedTextLayer =
     selectedLayer && isTextLayer(selectedLayer) ? selectedLayer : null
   const selectedImageLayer =
@@ -224,39 +240,43 @@ function App() {
     handleLayerUpdate({ textAlign })
   }
 
-  const handleAlignLayerToCanvas = (
-    alignment: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom',
-  ) => {
+  const handleAlignLayerToCanvas = (alignment: LayerAlignment) => {
     if (!selectedLayer) {
       return
     }
 
-    const patch =
-      alignment === 'left'
-        ? { x: 24 }
-        : alignment === 'center'
-          ? { x: Number(((state.size.width - selectedLayer.width) / 2).toFixed(1)) }
-          : alignment === 'right'
-            ? {
-                x: Number(
-                  (state.size.width - selectedLayer.width - 24).toFixed(1),
-                ),
-              }
-            : alignment === 'top'
-              ? { y: 24 }
-              : alignment === 'middle'
-                ? {
-                    y: Number(
-                      ((state.size.height - selectedLayer.height) / 2).toFixed(1),
-                    ),
-                  }
-                : {
-                    y: Number(
-                      (state.size.height - selectedLayer.height - 24).toFixed(1),
-                    ),
-                  }
+    endHistoryTransaction()
+    setEditingTextLayerId(null)
+    setState((current) => alignLayerToCanvas(current, selectedLayer.id, alignment))
+  }
 
-    handleLayerUpdate(patch)
+  const handleAlignLayerToReference = (alignment: LayerAlignment) => {
+    if (!selectedLayer || !alignmentReferenceId) {
+      return
+    }
+
+    endHistoryTransaction()
+    setEditingTextLayerId(null)
+    setState((current) =>
+      alignLayerToReference(
+        current,
+        selectedLayer.id,
+        alignmentReferenceId,
+        alignment,
+      ),
+    )
+  }
+
+  const handleAlignSelectedLayers = (alignment: LayerAlignment) => {
+    if (selectedLayerIds.length < 2) {
+      return
+    }
+
+    endHistoryTransaction()
+    setEditingTextLayerId(null)
+    setState((current) =>
+      alignSelectedLayers(current, getSelectedLayerIds(current), alignment),
+    )
   }
 
   const templateSelectValue = useMemo(() => {
@@ -388,34 +408,21 @@ function App() {
         return
       }
 
-      const rect = canvas.getBoundingClientRect()
-      const pointerX = (event.clientX - rect.left) / previewScale
-      const pointerY = (event.clientY - rect.top) / previewScale
-
       setState((current) => {
+        if (active.mode === 'move') {
+          return moveSelectedLayers(
+            current,
+            active.layerIds,
+            (event.clientX - active.startPointerX) / previewScale,
+            (event.clientY - active.startPointerY) / previewScale,
+            active.baseSnapshot,
+          )
+        }
+
         const layer = getLayerById(current, active.layerId)
 
         if (!layer) {
           return current
-        }
-
-        if (active.mode === 'move') {
-          return updateLayer(current, layer.id, {
-            x: Number(
-              clamp(
-                pointerX - active.offsetX,
-                24,
-                current.size.width - layer.width - 24,
-              ).toFixed(1),
-            ),
-            y: Number(
-              clamp(
-                pointerY - active.offsetY,
-                24,
-                current.size.height - layer.height - 24,
-              ).toFixed(1),
-            ),
-          })
         }
 
         if (active.mode === 'resize-text') {
@@ -598,7 +605,13 @@ function App() {
 
     endHistoryTransaction()
     setEditingTextLayerId(null)
-    setState((current) => duplicateLayer(current, selectedLayer.id))
+    setState((current) => {
+      const activeLayerIds = getSelectedLayerIds(current)
+
+      return activeLayerIds.length > 1
+        ? duplicateLayers(current, activeLayerIds)
+        : duplicateLayer(current, selectedLayer.id)
+    })
   }
 
   const handleDelete = () => {
@@ -608,7 +621,7 @@ function App() {
 
     endHistoryTransaction()
     setEditingTextLayerId(null)
-    setState((current) => removeLayer(current, selectedLayer.id))
+    setState((current) => removeLayers(current, getSelectedLayerIds(current)))
     setStatusMessage('已删除当前选中的元素。')
   }
 
@@ -669,7 +682,7 @@ function App() {
   }
 
   const handleLayerUpdate = (patch: Partial<CanvasLayer>) => {
-    if (!selectedLayer) {
+    if (!selectedLayer || isMultiSelection) {
       return
     }
 
@@ -677,11 +690,11 @@ function App() {
     setState((current) => updateLayer(current, selectedLayer.id, patch))
   }
 
-  const handleSelectLayer = (layerId: string) => {
+  const handleSelectLayer = (layerId: string, additive = false) => {
     endHistoryTransaction()
     setEditingTextLayerId(null)
-    setActiveInspectorTab('style')
-    setState((current) => selectLayer(current, layerId))
+    setActiveInspectorTab(additive ? 'layer' : 'style')
+    setState((current) => selectLayer(current, layerId, { additive }))
   }
 
   const handleStartEditingText = (layerId: string) => {
@@ -704,24 +717,33 @@ function App() {
     event.preventDefault()
     event.currentTarget.setPointerCapture?.(event.pointerId)
     setEditingTextLayerId(null)
-    beginHistoryTransaction()
 
-    if (!canvasRef.current) {
+    if (event.shiftKey) {
+      endHistoryTransaction()
+      shiftSelectionHandledRef.current = true
+      setActiveInspectorTab('layer')
+      setState((current) => selectLayer(current, layer.id, { additive: true }))
       return
     }
 
-    const rect = canvasRef.current.getBoundingClientRect()
-    const pointerX = (event.clientX - rect.left) / previewScale
-    const pointerY = (event.clientY - rect.top) / previewScale
+    beginHistoryTransaction()
+    const layerIdsToMove = selectedLayerIds.includes(layer.id)
+      ? selectedLayerIds
+      : [layer.id]
 
     interactionRef.current = {
       mode: 'move',
-      layerId: layer.id,
-      offsetX: pointerX - layer.x,
-      offsetY: pointerY - layer.y,
+      layerIds: layerIdsToMove,
+      startPointerX: event.clientX,
+      startPointerY: event.clientY,
+      baseSnapshot: getLayerPositionSnapshot(state, layerIdsToMove),
     }
 
-    setState((current) => selectLayer(current, layer.id))
+    setState((current) =>
+      getSelectedLayerIds(current).includes(layer.id)
+        ? current
+        : selectLayer(current, layer.id),
+    )
   }
 
   const startResizeImage = (
@@ -776,17 +798,55 @@ function App() {
     BACKGROUND_PRESETS.find(
       (preset) =>
         preset.background.fill === state.background.fill &&
-        preset.background.texture === state.background.texture,
+        preset.background.texture === state.background.texture &&
+        preset.background.textureSize === state.background.textureSize,
     )?.id ?? null
   const selectedSolidBackgroundPresetId =
     SOLID_BACKGROUND_PRESETS.find(
       (preset) =>
         preset.background.fill === state.background.fill &&
-        preset.background.texture === state.background.texture,
+        preset.background.texture === state.background.texture &&
+        preset.background.textureSize === state.background.textureSize,
     )?.id ?? null
 
   const textLayers = state.layers.filter(isTextLayer)
   const imageLayers = state.layers.filter(isImageLayer)
+  const alignmentReferenceOptions = useMemo(
+    () =>
+      selectedLayer
+        ? state.layers
+            .filter((layer) => layer.id !== selectedLayer.id)
+            .map((layer) => ({
+              value: layer.id,
+              label: isTextLayer(layer)
+                ? `文字图层 ${textLayers.findIndex((item) => item.id === layer.id) + 1}`
+                : `图片图层 ${imageLayers.findIndex((item) => item.id === layer.id) + 1}`,
+            }))
+        : [],
+    [imageLayers, selectedLayer, state.layers, textLayers],
+  )
+
+  useEffect(() => {
+    if (!selectedLayer) {
+      if (alignmentReferenceId) {
+        setAlignmentReferenceId('')
+      }
+      return
+    }
+
+    const nextReferenceId = alignmentReferenceOptions[0]?.value ?? ''
+
+    if (
+      alignmentReferenceId === selectedLayer.id ||
+      !alignmentReferenceOptions.some(
+        (option) => option.value === alignmentReferenceId,
+      )
+    ) {
+      if (alignmentReferenceId !== nextReferenceId) {
+        setAlignmentReferenceId(nextReferenceId)
+      }
+    }
+  }, [alignmentReferenceId, alignmentReferenceOptions, selectedLayer])
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -908,7 +968,7 @@ function App() {
       if (event.key === 'Backspace' || event.key === 'Delete') {
         event.preventDefault()
         setEditingTextLayerId(null)
-        setState((current) => removeLayer(current, selectedLayer.id))
+        setState((current) => removeLayers(current, getSelectedLayerIds(current)))
         setStatusMessage('已删除当前选中的元素。')
         return
       }
@@ -926,30 +986,9 @@ function App() {
           event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0
 
         event.preventDefault()
-        setState((current) => {
-          const layer = getLayerById(current, selectedLayer.id)
-
-          if (!layer) {
-            return current
-          }
-
-          return updateLayer(current, layer.id, {
-            x: Number(
-              clamp(
-                layer.x + deltaX,
-                24,
-                current.size.width - layer.width - 24,
-              ).toFixed(1),
-            ),
-            y: Number(
-              clamp(
-                layer.y + deltaY,
-                24,
-                current.size.height - layer.height - 24,
-              ).toFixed(1),
-            ),
-          })
-        })
+        setState((current) =>
+          moveSelectedLayers(current, getSelectedLayerIds(current), deltaX, deltaY),
+        )
       }
     }
 
@@ -1108,12 +1147,16 @@ function App() {
                 >
                   <div
                     className="canvas__texture"
-                    style={{ backgroundImage: state.background.texture }}
+                    style={{
+                      backgroundImage: state.background.texture,
+                      backgroundSize: state.background.textureSize,
+                    }}
                   />
                   <div className="canvas__accent" />
 
                   {state.layers.map((layer) => {
-                    const isSelected = layer.id === selectedLayer?.id
+                    const isSelected = selectedLayerIds.includes(layer.id)
+                    const isPrimarySelected = layer.id === selectedLayer?.id
 
                     if (isTextLayer(layer)) {
                       const textIndex =
@@ -1132,6 +1175,13 @@ function App() {
                         fontFamily: FONT_LOOKUP[layer.fontId],
                         textAlign: layer.textAlign,
                         fontWeight: layer.weight,
+                        fontStyle: layer.italic ? 'italic' : 'normal',
+                        textDecoration: [
+                          layer.underline ? 'underline' : '',
+                          layer.strikethrough ? 'line-through' : '',
+                        ]
+                          .filter(Boolean)
+                          .join(' '),
                         WebkitTextStroke:
                           layer.strokeWidth > 0
                             ? `${layer.strokeWidth}px ${layer.strokeColor}`
@@ -1163,6 +1213,7 @@ function App() {
                                 ? 'canvas__text-layer--plain'
                                 : '',
                               isSelected ? 'is-selected' : '',
+                              isPrimarySelected ? 'is-primary-selected' : '',
                             ]
                               .join(' ')
                               .trim()}
@@ -1208,16 +1259,29 @@ function App() {
                               ? 'canvas__text-layer--plain'
                               : '',
                             isSelected ? 'is-selected' : '',
+                            isPrimarySelected ? 'is-primary-selected' : '',
                           ]
                             .join(' ')
                             .trim()}
                           style={textLayerStyle}
                           onPointerDown={(event) => startMoveLayer(event, layer)}
-                          onClick={() => handleSelectLayer(layer.id)}
+                          onClick={(event) => {
+                            if (event.shiftKey) {
+                              if (shiftSelectionHandledRef.current) {
+                                shiftSelectionHandledRef.current = false
+                                return
+                              }
+
+                              handleSelectLayer(layer.id, true)
+                              return
+                            }
+
+                            handleSelectLayer(layer.id)
+                          }}
                           onDoubleClick={() => handleStartEditingText(layer.id)}
                         >
                           {layer.content}
-                          {isSelected && (
+                          {isPrimarySelected && !isMultiSelection && (
                             <button
                               type="button"
                               aria-label="调整文字宽度"
@@ -1242,6 +1306,7 @@ function App() {
                           'canvas__layer',
                           'canvas__image-layer',
                           isSelected ? 'is-selected' : '',
+                          isPrimarySelected ? 'is-primary-selected' : '',
                         ]
                           .join(' ')
                           .trim()}
@@ -1252,7 +1317,19 @@ function App() {
                           height: `${layer.height}px`,
                         }}
                         onPointerDown={(event) => startMoveLayer(event, layer)}
-                        onClick={() => handleSelectLayer(layer.id)}
+                        onClick={(event) => {
+                          if (event.shiftKey) {
+                            if (shiftSelectionHandledRef.current) {
+                              shiftSelectionHandledRef.current = false
+                              return
+                            }
+
+                            handleSelectLayer(layer.id, true)
+                            return
+                          }
+
+                          handleSelectLayer(layer.id)
+                        }}
                       >
                         <img
                           src={layer.src}
@@ -1264,7 +1341,7 @@ function App() {
                               layer.shape === 'circle' ? '999px' : `${layer.radius}px`,
                           }}
                         />
-                        {isSelected && (
+                        {isPrimarySelected && !isMultiSelection && (
                           <button
                             type="button"
                             aria-label="调整图片大小"
@@ -1352,7 +1429,13 @@ function App() {
 
             {activeInspectorTab === 'style' && (
               <>
-                {selectedTextLayer && (
+                {isMultiSelection && (
+                  <section className="panel panel--muted">
+                    <p>已多选 {selectedLayerIds.length} 个元素。样式编辑先回到单选，再修改字体、底框和描边。</p>
+                  </section>
+                )}
+
+                {!isMultiSelection && selectedTextLayer && (
                   <section className="panel">
                     <div className="panel__heading">
                       <h2>文字样式</h2>
@@ -1393,6 +1476,65 @@ function App() {
                           ))}
                         </select>
                       </label>
+                    </div>
+
+                    <div className="panel-subsection">
+                      <span className="subtle-label">字重</span>
+                      <div className="icon-group">
+                        {([
+                          ['常规', 500],
+                          ['中黑', 700],
+                          ['加粗', 800],
+                        ] as const).map(([label, weight]) => (
+                          <button
+                            key={label}
+                            type="button"
+                            className={selectedTextLayer.weight === weight ? 'is-active' : ''}
+                            onClick={() => handleLayerUpdate({ weight })}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="panel-subsection">
+                      <span className="subtle-label">文字样式</span>
+                      <div className="icon-group">
+                        <button
+                          type="button"
+                          className={selectedTextLayer.italic ? 'is-active' : ''}
+                          onClick={() =>
+                            handleLayerUpdate({
+                              italic: !selectedTextLayer.italic,
+                            })
+                          }
+                        >
+                          斜体
+                        </button>
+                        <button
+                          type="button"
+                          className={selectedTextLayer.underline ? 'is-active' : ''}
+                          onClick={() =>
+                            handleLayerUpdate({
+                              underline: !selectedTextLayer.underline,
+                            })
+                          }
+                        >
+                          下划线
+                        </button>
+                        <button
+                          type="button"
+                          className={selectedTextLayer.strikethrough ? 'is-active' : ''}
+                          onClick={() =>
+                            handleLayerUpdate({
+                              strikethrough: !selectedTextLayer.strikethrough,
+                            })
+                          }
+                        >
+                          删除线
+                        </button>
+                      </div>
                     </div>
 
                     <div className="panel-subsection">
@@ -1662,7 +1804,7 @@ function App() {
                   </section>
                 )}
 
-                {selectedImageLayer && (
+                {!isMultiSelection && selectedImageLayer && (
                   <section className="panel">
                     <div className="panel__heading">
                       <h2>图片形状</h2>
@@ -1740,7 +1882,64 @@ function App() {
 
             {activeInspectorTab === 'layer' && (
               <>
-                {selectedLayer && (
+                {isMultiSelection && (
+                  <section className="panel">
+                    <div className="panel__heading">
+                      <h2>多选对齐</h2>
+                      <p>已多选 {selectedLayerIds.length} 个元素，按住 Shift 点击还能继续增减。</p>
+                    </div>
+
+                    <div className="panel-subsection">
+                      <span className="subtle-label">对齐所选元素</span>
+                      <div className="icon-group">
+                        <button
+                          type="button"
+                          aria-label="多选左对齐"
+                          onClick={() => handleAlignSelectedLayers('left')}
+                        >
+                          左对齐
+                        </button>
+                        <button
+                          type="button"
+                          aria-label="多选水平居中"
+                          onClick={() => handleAlignSelectedLayers('center')}
+                        >
+                          水平居中
+                        </button>
+                        <button
+                          type="button"
+                          aria-label="多选右对齐"
+                          onClick={() => handleAlignSelectedLayers('right')}
+                        >
+                          右对齐
+                        </button>
+                        <button
+                          type="button"
+                          aria-label="多选上对齐"
+                          onClick={() => handleAlignSelectedLayers('top')}
+                        >
+                          上对齐
+                        </button>
+                        <button
+                          type="button"
+                          aria-label="多选垂直居中"
+                          onClick={() => handleAlignSelectedLayers('middle')}
+                        >
+                          垂直居中
+                        </button>
+                        <button
+                          type="button"
+                          aria-label="多选下对齐"
+                          onClick={() => handleAlignSelectedLayers('bottom')}
+                        >
+                          下对齐
+                        </button>
+                      </div>
+                    </div>
+                  </section>
+                )}
+
+                {selectedLayer && !isMultiSelection && (
                   <section className="panel">
                     <div className="panel__heading">
                       <h2>图层顺序</h2>
@@ -1816,6 +2015,72 @@ function App() {
                         </button>
                       </div>
                     </div>
+
+                    {alignmentReferenceOptions.length > 0 && (
+                      <div className="panel-subsection">
+                        <span className="subtle-label">对齐其它元素</span>
+                        <label className="field">
+                          <span>参考图层</span>
+                          <select
+                            aria-label="对齐参考"
+                            value={alignmentReferenceId}
+                            onChange={(event) =>
+                              setAlignmentReferenceId(event.target.value)
+                            }
+                          >
+                            {alignmentReferenceOptions.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <div className="icon-group">
+                          <button
+                            type="button"
+                            aria-label="参考左边对齐"
+                            onClick={() => handleAlignLayerToReference('left')}
+                          >
+                            左边对齐
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="参考水平居中"
+                            onClick={() => handleAlignLayerToReference('center')}
+                          >
+                            水平居中
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="参考右边对齐"
+                            onClick={() => handleAlignLayerToReference('right')}
+                          >
+                            右边对齐
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="参考上边对齐"
+                            onClick={() => handleAlignLayerToReference('top')}
+                          >
+                            上边对齐
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="参考垂直居中"
+                            onClick={() => handleAlignLayerToReference('middle')}
+                          >
+                            垂直居中
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="参考下边对齐"
+                            onClick={() => handleAlignLayerToReference('bottom')}
+                          >
+                            下边对齐
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </section>
                 )}
 

@@ -1,3 +1,4 @@
+import * as editor from './editor'
 import {
   addImageLayer,
   applyCustomTemplate,
@@ -5,9 +6,13 @@ import {
   createCustomTemplate,
   createEditorState,
   duplicateLayer,
+  getSelectedLayerIds,
+  isTextLayer,
   moveLayerBackward,
   moveLayerForward,
+  normalizeEditorState,
   resizeState,
+  selectLayer,
   sendLayerToBack,
   setImageShape,
   updateLayer,
@@ -161,5 +166,205 @@ describe('editor helpers', () => {
     expect(applied.templateSource).toBe('custom')
     expect(applied.templateName).toBe('老板专用')
     expect(applied.layers).toHaveLength(base.layers.length)
+  })
+
+  it('aligns the selected layer to another layer reference', () => {
+    const base = createEditorState('quote-card', 'xhs-34')
+    const sourceLayerId = base.layers[2].id
+    const targetLayerId = base.layers[1].id
+
+    const aligned = (
+      editor as {
+        alignLayerToReference: (
+          state: ReturnType<typeof createEditorState>,
+          layerId: string,
+          referenceId: string,
+          alignment: 'right' | 'middle',
+        ) => ReturnType<typeof createEditorState>
+      }
+    ).alignLayerToReference(base, sourceLayerId, targetLayerId, 'right')
+
+    const rightAlignedLayer = aligned.layers.find(
+      (layer) => layer.id === sourceLayerId,
+    )
+    const targetLayer = aligned.layers.find((layer) => layer.id === targetLayerId)
+
+    expect(rightAlignedLayer).toBeDefined()
+    expect(targetLayer).toBeDefined()
+    expect(rightAlignedLayer?.x).toBe(
+      (targetLayer?.x ?? 0) + (targetLayer?.width ?? 0) - (rightAlignedLayer?.width ?? 0),
+    )
+
+    const middleAligned = (
+      editor as {
+        alignLayerToReference: (
+          state: ReturnType<typeof createEditorState>,
+          layerId: string,
+          referenceId: string,
+          alignment: 'right' | 'middle',
+        ) => ReturnType<typeof createEditorState>
+      }
+    ).alignLayerToReference(aligned, sourceLayerId, targetLayerId, 'middle')
+
+    const middleAlignedLayer = middleAligned.layers.find(
+      (layer) => layer.id === sourceLayerId,
+    )
+    const middleTarget = middleAligned.layers.find(
+      (layer) => layer.id === targetLayerId,
+    )
+
+    expect(middleAlignedLayer?.y).toBeCloseTo(
+      (middleTarget?.y ?? 0) +
+        ((middleTarget?.height ?? 0) - (middleAlignedLayer?.height ?? 0)) / 2,
+      1,
+    )
+  })
+
+  it('aligns text and image layers against each other', () => {
+    const base = createEditorState('quote-card', 'xhs-34')
+    const withImage = addImageLayer(base, {
+      src: 'data:image/png;base64,abc',
+      name: 'sample.png',
+      naturalWidth: 1200,
+      naturalHeight: 800,
+    })
+    const imageLayer = withImage.layers.find((layer) => layer.id === withImage.selectedLayerId)
+    const textLayer = withImage.layers
+      .filter(isTextLayer)
+      .find((layer) => layer.width <= 320)
+
+    expect(imageLayer).toBeDefined()
+    expect(textLayer).toBeDefined()
+
+    const aligned = (
+      editor as {
+        alignLayerToReference: (
+          state: ReturnType<typeof createEditorState>,
+          layerId: string,
+          referenceId: string,
+          alignment: 'left' | 'bottom',
+        ) => ReturnType<typeof createEditorState>
+      }
+    ).alignLayerToReference(
+      withImage,
+      textLayer?.id ?? '',
+      imageLayer?.id ?? '',
+      'left',
+    )
+
+    const leftAlignedText = aligned.layers.find((layer) => layer.id === textLayer?.id)
+    const alignedImage = aligned.layers.find((layer) => layer.id === imageLayer?.id)
+
+    expect(leftAlignedText?.x).toBe(alignedImage?.x)
+
+    const bottomAligned = (
+      editor as {
+        alignLayerToReference: (
+          state: ReturnType<typeof createEditorState>,
+          layerId: string,
+          referenceId: string,
+          alignment: 'left' | 'bottom',
+        ) => ReturnType<typeof createEditorState>
+      }
+    ).alignLayerToReference(
+      aligned,
+      textLayer?.id ?? '',
+      imageLayer?.id ?? '',
+      'bottom',
+    )
+
+    const bottomAlignedText = bottomAligned.layers.find(
+      (layer) => layer.id === textLayer?.id,
+    )
+    const bottomAlignedImage = bottomAligned.layers.find(
+      (layer) => layer.id === imageLayer?.id,
+    )
+
+    expect(bottomAlignedText?.y).toBeCloseTo(
+      (bottomAlignedImage?.y ?? 0) +
+        (bottomAlignedImage?.height ?? 0) -
+        (bottomAlignedText?.height ?? 0),
+      1,
+    )
+  })
+
+  it('normalizes legacy text layers with missing emphasis flags', () => {
+    const base = createEditorState('quote-card', 'xhs-34')
+    const legacyState = {
+      ...base,
+      layers: base.layers.map((layer) => {
+        if (!isTextLayer(layer)) {
+          return layer
+        }
+
+        const legacyLayer = { ...layer } as Record<string, unknown>
+        delete legacyLayer.italic
+        delete legacyLayer.underline
+        delete legacyLayer.strikethrough
+
+        return legacyLayer
+      }),
+    }
+
+    const normalized = normalizeEditorState(legacyState as never)
+    const normalizedTextLayer = normalized.layers.find(isTextLayer)
+
+    expect(normalizedTextLayer).toBeDefined()
+    expect((normalizedTextLayer as editor.TextLayer).italic).toBe(false)
+    expect((normalizedTextLayer as editor.TextLayer).underline).toBe(false)
+    expect((normalizedTextLayer as editor.TextLayer).strikethrough).toBe(false)
+  })
+
+  it('supports additive selection and aligns selected layers as a group', () => {
+    const base = createEditorState('quote-card', 'xhs-34')
+    const multiSelected = selectLayer(base, base.layers[2].id, { additive: true })
+
+    expect(getSelectedLayerIds(multiSelected)).toEqual([
+      base.layers[0].id,
+      base.layers[2].id,
+    ])
+
+    const aligned = (
+      editor as {
+        alignSelectedLayers: (
+          state: ReturnType<typeof createEditorState>,
+          layerIds: string[],
+          alignment: 'left' | 'middle',
+        ) => ReturnType<typeof createEditorState>
+      }
+    ).alignSelectedLayers(
+      multiSelected,
+      getSelectedLayerIds(multiSelected),
+      'left',
+    )
+
+    expect(aligned.layers[0].x).toBe(108)
+    expect(aligned.layers[2].x).toBe(108)
+
+    const middleAligned = (
+      editor as {
+        alignSelectedLayers: (
+          state: ReturnType<typeof createEditorState>,
+          layerIds: string[],
+          alignment: 'left' | 'middle',
+        ) => ReturnType<typeof createEditorState>
+      }
+    ).alignSelectedLayers(
+      aligned,
+      getSelectedLayerIds(aligned),
+      'middle',
+    )
+
+    const firstLayer = middleAligned.layers[0]
+    const thirdLayer = middleAligned.layers[2]
+    const selectionTop = Math.min(firstLayer.y, thirdLayer.y)
+    const selectionBottom = Math.max(
+      firstLayer.y + firstLayer.height,
+      thirdLayer.y + thirdLayer.height,
+    )
+    const selectionCenter = selectionTop + (selectionBottom - selectionTop) / 2
+
+    expect(firstLayer.y + firstLayer.height / 2).toBeCloseTo(selectionCenter, 1)
+    expect(thirdLayer.y + thirdLayer.height / 2).toBeCloseTo(selectionCenter, 1)
   })
 })
