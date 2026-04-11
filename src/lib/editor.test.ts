@@ -6,11 +6,13 @@ import {
   createCustomTemplate,
   createEditorState,
   duplicateLayer,
+  getSelectedLayerIds,
   isTextLayer,
   moveLayerBackward,
   moveLayerForward,
   normalizeEditorState,
   resizeState,
+  selectLayer,
   sendLayerToBack,
   setImageShape,
   updateLayer,
@@ -311,5 +313,58 @@ describe('editor helpers', () => {
     expect((normalizedTextLayer as editor.TextLayer).italic).toBe(false)
     expect((normalizedTextLayer as editor.TextLayer).underline).toBe(false)
     expect((normalizedTextLayer as editor.TextLayer).strikethrough).toBe(false)
+  })
+
+  it('supports additive selection and aligns selected layers as a group', () => {
+    const base = createEditorState('quote-card', 'xhs-34')
+    const multiSelected = selectLayer(base, base.layers[2].id, { additive: true })
+
+    expect(getSelectedLayerIds(multiSelected)).toEqual([
+      base.layers[0].id,
+      base.layers[2].id,
+    ])
+
+    const aligned = (
+      editor as {
+        alignSelectedLayers: (
+          state: ReturnType<typeof createEditorState>,
+          layerIds: string[],
+          alignment: 'left' | 'middle',
+        ) => ReturnType<typeof createEditorState>
+      }
+    ).alignSelectedLayers(
+      multiSelected,
+      getSelectedLayerIds(multiSelected),
+      'left',
+    )
+
+    expect(aligned.layers[0].x).toBe(108)
+    expect(aligned.layers[2].x).toBe(108)
+
+    const middleAligned = (
+      editor as {
+        alignSelectedLayers: (
+          state: ReturnType<typeof createEditorState>,
+          layerIds: string[],
+          alignment: 'left' | 'middle',
+        ) => ReturnType<typeof createEditorState>
+      }
+    ).alignSelectedLayers(
+      aligned,
+      getSelectedLayerIds(aligned),
+      'middle',
+    )
+
+    const firstLayer = middleAligned.layers[0]
+    const thirdLayer = middleAligned.layers[2]
+    const selectionTop = Math.min(firstLayer.y, thirdLayer.y)
+    const selectionBottom = Math.max(
+      firstLayer.y + firstLayer.height,
+      thirdLayer.y + thirdLayer.height,
+    )
+    const selectionCenter = selectionTop + (selectionBottom - selectionTop) / 2
+
+    expect(firstLayer.y + firstLayer.height / 2).toBeCloseTo(selectionCenter, 1)
+    expect(thirdLayer.y + thirdLayer.height / 2).toBeCloseTo(selectionCenter, 1)
   })
 })

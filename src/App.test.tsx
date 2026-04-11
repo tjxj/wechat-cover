@@ -112,6 +112,26 @@ describe('App', () => {
     expect(screen.queryByRole('button', { name: '纯色背景 #f7f0dc' })).not.toBeInTheDocument()
   })
 
+  it('offers curated online fonts and editorial grid backgrounds', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    expect(
+      screen.getByRole('option', { name: 'Noto Serif SC 编辑宋体' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('option', { name: 'Noto Sans SC 现代黑体' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('option', { name: 'Ma Shan Zheng 手写标题' }),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '背景' }))
+
+    expect(screen.getByRole('button', { name: 'Soft Grid Paper' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Blueprint Grid' })).toBeInTheDocument()
+  })
+
   it('clears text outline together with frame when switching to no frame', async () => {
     const user = userEvent.setup()
     render(<App />)
@@ -218,6 +238,26 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: '参考右边对齐' }))
 
     expect(sourceLayer).toHaveStyle({ left: '516px' })
+  })
+
+  it('supports shift multi-select and aligns several layers together', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    const firstLayer = screen.getByLabelText('文字图层 1')
+    const thirdLayer = screen.getByLabelText('文字图层 3')
+
+    await user.click(firstLayer)
+    fireEvent.pointerDown(thirdLayer, { shiftKey: true, pointerId: 1 })
+    fireEvent.click(thirdLayer, { shiftKey: true })
+    await user.click(screen.getByRole('button', { name: '图层' }))
+
+    expect(screen.getByText(/已多选 2 个元素/)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '多选左对齐' }))
+
+    expect(firstLayer).toHaveStyle({ left: '108px' })
+    expect(thirdLayer).toHaveStyle({ left: '108px' })
   })
 
   it('applies text emphasis controls from the style panel', async () => {

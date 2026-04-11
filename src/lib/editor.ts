@@ -14,7 +14,12 @@ export type BuiltinTemplateId =
 
 export type TemplateId = string
 export type TemplateSource = 'builtin' | 'custom'
-export type FontId = 'sans' | 'serif' | 'display'
+export type FontId =
+  | 'sans'
+  | 'serif'
+  | 'display'
+  | 'handwritten'
+  | 'brush'
 export type TextAlign = 'left' | 'center' | 'right'
 export type LayerAlignment =
   | 'left'
@@ -39,6 +44,7 @@ export interface CanvasBackground {
   accent: string
   panel: string
   texture: string
+  textureSize?: string
 }
 
 interface BaseLayer {
@@ -89,6 +95,7 @@ export interface EditorState {
   background: CanvasBackground
   layers: CanvasLayer[]
   selectedLayerId: string
+  selectedLayerIds: string[]
 }
 
 export interface UserTemplate {
@@ -362,22 +369,34 @@ export const SIZE_PRESETS: CanvasSize[] = [
 
 export const FONT_PRESETS = [
   {
-    id: 'display',
-    name: '标题黑体',
-    family:
-      '"PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif',
-  },
-  {
     id: 'serif',
-    name: '思源宋体',
+    name: 'Noto Serif SC 编辑宋体',
     family:
-      '"Source Han Serif SC Local", "Source Han Serif SC", "Songti SC", "STSong", "Noto Serif SC", serif',
+      '"Noto Serif SC", "Songti SC", "STSong", "Source Han Serif SC", serif',
   },
   {
     id: 'sans',
-    name: '清爽正文',
+    name: 'Noto Sans SC 现代黑体',
     family:
-      '"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif',
+      '"Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif',
+  },
+  {
+    id: 'display',
+    name: 'ZCOOL XiaoWei 海报标题',
+    family:
+      '"ZCOOL XiaoWei", "Noto Serif SC", serif',
+  },
+  {
+    id: 'handwritten',
+    name: 'Ma Shan Zheng 手写标题',
+    family:
+      '"Ma Shan Zheng", "Noto Serif SC", cursive',
+  },
+  {
+    id: 'brush',
+    name: 'Long Cang 泼墨字',
+    family:
+      '"Long Cang", "Noto Sans SC", cursive',
   },
 ] as const
 
@@ -750,6 +769,51 @@ export const SOLID_BACKGROUND_PRESETS: BackgroundPreset[] = [
 
 export const BACKGROUND_PRESETS: BackgroundPreset[] = [
   {
+    id: 'soft-grid-paper',
+    name: 'Soft Grid Paper',
+    background: {
+      fill: '#fbf7ef',
+      accent: '#433b2d',
+      panel: '#fffdf8',
+      texture:
+        'repeating-linear-gradient(0deg, rgba(191,181,159,0.18) 0, rgba(191,181,159,0.18) 1px, transparent 1px, transparent 26px), repeating-linear-gradient(90deg, rgba(191,181,159,0.18) 0, rgba(191,181,159,0.18) 1px, transparent 1px, transparent 26px), linear-gradient(rgba(255,255,255,0.72), rgba(255,255,255,0.2))',
+    },
+  },
+  {
+    id: 'blueprint-grid',
+    name: 'Blueprint Grid',
+    background: {
+      fill: '#eef5fb',
+      accent: '#1d4f73',
+      panel: '#f8fbff',
+      texture:
+        'repeating-linear-gradient(0deg, rgba(106,144,173,0.2) 0, rgba(106,144,173,0.2) 1px, transparent 1px, transparent 24px), repeating-linear-gradient(90deg, rgba(106,144,173,0.2) 0, rgba(106,144,173,0.2) 1px, transparent 1px, transparent 24px), linear-gradient(rgba(255,255,255,0.45), rgba(255,255,255,0.12))',
+    },
+  },
+  {
+    id: 'notebook-checks',
+    name: 'Notebook Checks',
+    background: {
+      fill: '#fffdf8',
+      accent: '#6b5b45',
+      panel: '#ffffff',
+      texture:
+        'repeating-linear-gradient(0deg, rgba(219,213,201,0.48) 0, rgba(219,213,201,0.48) 1px, transparent 1px, transparent 28px), repeating-linear-gradient(90deg, rgba(219,213,201,0.48) 0, rgba(219,213,201,0.48) 1px, transparent 1px, transparent 28px)',
+    },
+  },
+  {
+    id: 'dot-matrix-paper',
+    name: 'Dot Matrix Paper',
+    background: {
+      fill: '#fcfaf5',
+      accent: '#4b5563',
+      panel: '#ffffff',
+      texture:
+        'radial-gradient(circle, rgba(148,163,184,0.32) 1.2px, transparent 1.3px), linear-gradient(rgba(255,255,255,0.55), rgba(255,255,255,0.18))',
+      textureSize: '22px 22px, auto',
+    },
+  },
+  {
     id: 'paper-fade',
     name: 'Paper Fade',
     background: {
@@ -873,6 +937,7 @@ export const createEditorState = (
     background: { ...template.background },
     layers,
     selectedLayerId: layers[0]?.id ?? '',
+    selectedLayerIds: layers[0] ? [layers[0].id] : [],
   }
 }
 
@@ -899,10 +964,79 @@ export const setBuiltinTemplate = (
 export const getLayerById = (state: EditorState, layerId: string) =>
   state.layers.find((layer) => layer.id === layerId)
 
-export const selectLayer = (state: EditorState, layerId: string): EditorState => ({
-  ...state,
-  selectedLayerId: layerId,
-})
+const uniqueIds = (layerIds: string[]) => [...new Set(layerIds.filter(Boolean))]
+
+export const getSelectedLayerIds = (state: EditorState) => {
+  const validIds = uniqueIds(state.selectedLayerIds ?? []).filter((layerId) =>
+    state.layers.some((layer) => layer.id === layerId),
+  )
+
+  if (state.layers.some((layer) => layer.id === state.selectedLayerId)) {
+    return validIds.includes(state.selectedLayerId)
+      ? validIds
+      : [...validIds, state.selectedLayerId]
+  }
+
+  return validIds
+}
+
+export const getPrimarySelectedLayerId = (state: EditorState) =>
+  getSelectedLayerIds(state).at(-1) ?? ''
+
+const withSelection = (
+  state: EditorState,
+  layerIds: string[],
+  primaryLayerId?: string,
+): EditorState => {
+  const validIds = uniqueIds(layerIds).filter((layerId) =>
+    state.layers.some((layer) => layer.id === layerId),
+  )
+  const fallbackPrimary = validIds.at(-1) ?? state.layers[0]?.id ?? ''
+  const nextPrimary =
+    primaryLayerId && validIds.includes(primaryLayerId)
+      ? primaryLayerId
+      : fallbackPrimary
+  const nextIds = validIds.length > 0 ? validIds : nextPrimary ? [nextPrimary] : []
+
+  return {
+    ...state,
+    selectedLayerId: nextPrimary,
+    selectedLayerIds: nextIds,
+  }
+}
+
+export const selectLayer = (
+  state: EditorState,
+  layerId: string,
+  options?: {
+    additive?: boolean
+  },
+): EditorState => {
+  if (!state.layers.some((layer) => layer.id === layerId)) {
+    return state
+  }
+
+  if (!options?.additive) {
+    return withSelection(state, [layerId], layerId)
+  }
+
+  const currentIds = getSelectedLayerIds(state)
+  const isAlreadySelected = currentIds.includes(layerId)
+
+  if (isAlreadySelected) {
+    if (currentIds.length === 1) {
+      return withSelection(state, [layerId], layerId)
+    }
+
+    const nextIds = currentIds.filter((currentId) => currentId !== layerId)
+    const nextPrimary =
+      state.selectedLayerId === layerId ? nextIds.at(-1) : state.selectedLayerId
+
+    return withSelection(state, nextIds, nextPrimary)
+  }
+
+  return withSelection(state, [...currentIds, layerId], layerId)
+}
 
 const clampPosition = (value: number, min: number, max: number) =>
   Number(Math.min(Math.max(value, min), max).toFixed(1))
@@ -930,6 +1064,18 @@ const getClampedLayerPatch = (
         ),
       }
     : {}),
+})
+
+const getLayersByIds = (state: EditorState, layerIds: string[]) => {
+  const selectedSet = new Set(layerIds)
+  return state.layers.filter((layer) => selectedSet.has(layer.id))
+}
+
+const getLayerBounds = (layers: CanvasLayer[]) => ({
+  left: Math.min(...layers.map((layer) => layer.x)),
+  right: Math.max(...layers.map((layer) => layer.x + layer.width)),
+  top: Math.min(...layers.map((layer) => layer.y)),
+  bottom: Math.max(...layers.map((layer) => layer.y + layer.height)),
 })
 
 export const alignLayerToCanvas = (
@@ -986,6 +1132,130 @@ export const alignLayerToReference = (
               : { y: reference.y + reference.height - layer.height }
 
   return updateLayer(state, layerId, getClampedLayerPatch(state, layer, patch))
+}
+
+export const alignSelectedLayers = (
+  state: EditorState,
+  layerIds: string[],
+  alignment: LayerAlignment,
+): EditorState => {
+  const selectedLayers = getLayersByIds(state, layerIds)
+
+  if (selectedLayers.length < 2) {
+    return state
+  }
+
+  const bounds = getLayerBounds(selectedLayers)
+  const centerX = bounds.left + (bounds.right - bounds.left) / 2
+  const centerY = bounds.top + (bounds.bottom - bounds.top) / 2
+  const selectedSet = new Set(selectedLayers.map((layer) => layer.id))
+
+  return {
+    ...state,
+    layers: state.layers.map((layer) => {
+      if (!selectedSet.has(layer.id)) {
+        return layer
+      }
+
+      const nextX =
+        alignment === 'left'
+          ? bounds.left
+          : alignment === 'center'
+            ? centerX - layer.width / 2
+            : alignment === 'right'
+              ? bounds.right - layer.width
+              : layer.x
+      const nextY =
+        alignment === 'top'
+          ? bounds.top
+          : alignment === 'middle'
+            ? centerY - layer.height / 2
+            : alignment === 'bottom'
+              ? bounds.bottom - layer.height
+              : layer.y
+
+      return {
+        ...layer,
+        x: Number(nextX.toFixed(1)),
+        y: Number(nextY.toFixed(1)),
+      }
+    }),
+  }
+}
+
+type LayerPositionSnapshot = Record<
+  string,
+  { x: number; y: number; width: number; height: number }
+>
+
+export const getLayerPositionSnapshot = (
+  state: EditorState,
+  layerIds: string[],
+): LayerPositionSnapshot =>
+  Object.fromEntries(
+    getLayersByIds(state, layerIds).map((layer) => [
+      layer.id,
+      {
+        x: layer.x,
+        y: layer.y,
+        width: layer.width,
+        height: layer.height,
+      },
+    ]),
+  )
+
+export const moveSelectedLayers = (
+  state: EditorState,
+  layerIds: string[],
+  deltaX: number,
+  deltaY: number,
+  baseSnapshot?: LayerPositionSnapshot,
+): EditorState => {
+  const snapshot =
+    baseSnapshot && Object.keys(baseSnapshot).length > 0
+      ? baseSnapshot
+      : getLayerPositionSnapshot(state, layerIds)
+  const selectedLayers = Object.entries(snapshot)
+
+  if (selectedLayers.length === 0) {
+    return state
+  }
+
+  const left = Math.min(...selectedLayers.map(([, layer]) => layer.x))
+  const right = Math.max(
+    ...selectedLayers.map(([, layer]) => layer.x + layer.width),
+  )
+  const top = Math.min(...selectedLayers.map(([, layer]) => layer.y))
+  const bottom = Math.max(
+    ...selectedLayers.map(([, layer]) => layer.y + layer.height),
+  )
+  const appliedDeltaX = clampPosition(
+    deltaX,
+    24 - left,
+    state.size.width - right - 24,
+  )
+  const appliedDeltaY = clampPosition(
+    deltaY,
+    24 - top,
+    state.size.height - bottom - 24,
+  )
+
+  return {
+    ...state,
+    layers: state.layers.map((layer) => {
+      const source = snapshot[layer.id]
+
+      if (!source) {
+        return layer
+      }
+
+      return {
+        ...layer,
+        x: Number((source.x + appliedDeltaX).toFixed(1)),
+        y: Number((source.y + appliedDeltaY).toFixed(1)),
+      }
+    }),
+  }
 }
 
 export const updateLayer = (
@@ -1088,6 +1358,7 @@ export const addTextBlock = (state: EditorState, content = '输入你的标题')
     ...state,
     layers: [...state.layers, layer],
     selectedLayerId: layer.id,
+    selectedLayerIds: [layer.id],
   }
 }
 
@@ -1125,6 +1396,7 @@ export const addImageLayer = (
     ...state,
     layers: [...state.layers, layer],
     selectedLayerId: layer.id,
+    selectedLayerIds: [layer.id],
   }
 }
 
@@ -1149,11 +1421,14 @@ const reorderLayers = (
   const [layer] = layers.splice(fromIndex, 1)
   layers.splice(clampedIndex, 0, layer)
 
-  return {
-    ...state,
-    layers,
-    selectedLayerId: layerId,
-  }
+  return withSelection(
+    {
+      ...state,
+      layers,
+    },
+    getSelectedLayerIds(state),
+    layerId,
+  )
 }
 
 export const moveLayerForward = (state: EditorState, layerId: string) => {
@@ -1193,18 +1468,60 @@ export const duplicateLayer = (
     ...state,
     layers: [...state.layers, clone],
     selectedLayerId: clone.id,
+    selectedLayerIds: [clone.id],
   }
 }
 
-export const removeLayer = (state: EditorState, layerId: string): EditorState => {
-  const layers = state.layers.filter((layer) => layer.id !== layerId)
+export const duplicateLayers = (
+  state: EditorState,
+  layerIds: string[],
+): EditorState => {
+  const selectedSet = new Set(layerIds)
+  const clones = state.layers
+    .filter((layer) => selectedSet.has(layer.id))
+    .map((layer) =>
+      normalizeLayer({
+        ...layer,
+        id: nextId(layer.kind),
+        x: layer.x + 24,
+        y: layer.y + 24,
+      }),
+    )
+
+  if (clones.length === 0) {
+    return state
+  }
 
   return {
     ...state,
-    layers,
-    selectedLayerId: layers[0]?.id ?? '',
+    layers: [...state.layers, ...clones],
+    selectedLayerId: clones.at(-1)?.id ?? state.selectedLayerId,
+    selectedLayerIds: clones.map((layer) => layer.id),
   }
 }
+
+export const removeLayers = (
+  state: EditorState,
+  layerIds: string[],
+): EditorState => {
+  const removalSet = new Set(layerIds)
+  const layers = state.layers.filter((layer) => !removalSet.has(layer.id))
+  const remainingSelection = getSelectedLayerIds(state).filter(
+    (layerId) => !removalSet.has(layerId),
+  )
+
+  return withSelection(
+    {
+      ...state,
+      layers,
+    },
+    remainingSelection,
+    remainingSelection.at(-1),
+  )
+}
+
+export const removeLayer = (state: EditorState, layerId: string): EditorState =>
+  removeLayers(state, [layerId])
 
 export const setImageShape = (
   state: EditorState,
@@ -1254,12 +1571,25 @@ export const getTemplateName = (state: EditorState) => state.templateName
 
 export const normalizeEditorState = (state: EditorState): EditorState => {
   const layers = state.layers.map((layer) => normalizeLayer(layer))
+  const validSelectedIds = uniqueIds(state.selectedLayerIds ?? []).filter((layerId) =>
+    layers.some((layer) => layer.id === layerId),
+  )
+  const selectedLayerId = layers.some((layer) => layer.id === state.selectedLayerId)
+    ? state.selectedLayerId
+    : validSelectedIds.at(-1) ?? layers[0]?.id ?? ''
+  const selectedLayerIds =
+    validSelectedIds.length > 0
+      ? validSelectedIds.includes(selectedLayerId)
+        ? validSelectedIds
+        : [...validSelectedIds, selectedLayerId]
+      : selectedLayerId
+        ? [selectedLayerId]
+        : []
 
   return {
     ...state,
     layers,
-    selectedLayerId: layers.some((layer) => layer.id === state.selectedLayerId)
-      ? state.selectedLayerId
-      : layers[0]?.id ?? '',
+    selectedLayerId,
+    selectedLayerIds,
   }
 }
