@@ -3,6 +3,6 @@ import 'fake-indexeddb/auto'
 import { clearWorkspaceStorage } from '../lib/persistence'
 
 beforeEach(async () => {
-  window.localStorage.clear()
+  window.localStorage?.clear?.()
   await clearWorkspaceStorage()
 })

@@ -16,6 +16,13 @@ export type TemplateId = string
 export type TemplateSource = 'builtin' | 'custom'
 export type FontId = 'sans' | 'serif' | 'display'
 export type TextAlign = 'left' | 'center' | 'right'
+export type LayerAlignment =
+  | 'left'
+  | 'center'
+  | 'right'
+  | 'top'
+  | 'middle'
+  | 'bottom'
 export type LayerKind = 'text' | 'image'
 export type ImageShape = 'rounded' | 'circle'
 
@@ -58,6 +65,9 @@ export interface TextLayer extends BaseLayer {
   shadowColor: string
   textAlign: TextAlign
   weight: number
+  italic: boolean
+  underline: boolean
+  strikethrough: boolean
 }
 
 export interface ImageLayer extends BaseLayer {
@@ -97,10 +107,28 @@ export interface BackgroundPreset {
 
 type TextSeed = Omit<
   TextLayer,
-  'id' | 'kind' | 'height' | 'strokeWidth' | 'strokeColor' | 'shadowBlur' | 'shadowColor'
+  | 'id'
+  | 'kind'
+  | 'height'
+  | 'strokeWidth'
+  | 'strokeColor'
+  | 'shadowBlur'
+  | 'shadowColor'
+  | 'italic'
+  | 'underline'
+  | 'strikethrough'
 > &
   Partial<
-    Pick<TextLayer, 'strokeWidth' | 'strokeColor' | 'shadowBlur' | 'shadowColor'>
+    Pick<
+      TextLayer,
+      | 'strokeWidth'
+      | 'strokeColor'
+      | 'shadowBlur'
+      | 'shadowColor'
+      | 'italic'
+      | 'underline'
+      | 'strikethrough'
+    >
   >
 
 interface TemplateDefinition {
@@ -174,6 +202,9 @@ const toTextLayer = (layer: TextSeed, id = nextId('layer')): TextLayer => ({
   strokeColor: layer.strokeColor ?? DEFAULT_STROKE_COLOR,
   shadowBlur: layer.shadowBlur ?? 0,
   shadowColor: layer.shadowColor ?? DEFAULT_SHADOW_COLOR,
+  italic: layer.italic ?? false,
+  underline: layer.underline ?? false,
+  strikethrough: layer.strikethrough ?? false,
   id,
   kind: 'text',
   height: estimateTextHeight(
@@ -253,6 +284,10 @@ const normalizeTextLayer = (layer: TextLayer): TextLayer => {
     width,
     lineHeight,
     letterSpacing,
+    weight: Number(Math.min(Math.max(layer.weight ?? 700, 400), 900).toFixed(0)),
+    italic: Boolean(layer.italic),
+    underline: Boolean(layer.underline),
+    strikethrough: Boolean(layer.strikethrough),
     strokeWidth: Number(Math.min(Math.max(layer.strokeWidth ?? 0, 0), 12).toFixed(1)),
     strokeColor: layer.strokeColor ?? DEFAULT_STROKE_COLOR,
     shadowBlur: Number(Math.min(Math.max(layer.shadowBlur ?? 0, 0), 48).toFixed(1)),
@@ -868,6 +903,90 @@ export const selectLayer = (state: EditorState, layerId: string): EditorState =>
   ...state,
   selectedLayerId: layerId,
 })
+
+const clampPosition = (value: number, min: number, max: number) =>
+  Number(Math.min(Math.max(value, min), max).toFixed(1))
+
+const getClampedLayerPatch = (
+  state: EditorState,
+  layer: CanvasLayer,
+  patch: Partial<Pick<CanvasLayer, 'x' | 'y'>>,
+) => ({
+  ...(typeof patch.x === 'number'
+    ? {
+        x: clampPosition(
+          patch.x,
+          24,
+          Math.max(24, state.size.width - layer.width - 24),
+        ),
+      }
+    : {}),
+  ...(typeof patch.y === 'number'
+    ? {
+        y: clampPosition(
+          patch.y,
+          24,
+          Math.max(24, state.size.height - layer.height - 24),
+        ),
+      }
+    : {}),
+})
+
+export const alignLayerToCanvas = (
+  state: EditorState,
+  layerId: string,
+  alignment: LayerAlignment,
+): EditorState => {
+  const layer = getLayerById(state, layerId)
+
+  if (!layer) {
+    return state
+  }
+
+  const patch =
+    alignment === 'left'
+      ? { x: 24 }
+      : alignment === 'center'
+        ? { x: (state.size.width - layer.width) / 2 }
+        : alignment === 'right'
+          ? { x: state.size.width - layer.width - 24 }
+          : alignment === 'top'
+            ? { y: 24 }
+            : alignment === 'middle'
+              ? { y: (state.size.height - layer.height) / 2 }
+              : { y: state.size.height - layer.height - 24 }
+
+  return updateLayer(state, layerId, getClampedLayerPatch(state, layer, patch))
+}
+
+export const alignLayerToReference = (
+  state: EditorState,
+  layerId: string,
+  referenceId: string,
+  alignment: LayerAlignment,
+): EditorState => {
+  const layer = getLayerById(state, layerId)
+  const reference = getLayerById(state, referenceId)
+
+  if (!layer || !reference || layer.id === reference.id) {
+    return state
+  }
+
+  const patch =
+    alignment === 'left'
+      ? { x: reference.x }
+      : alignment === 'center'
+        ? { x: reference.x + (reference.width - layer.width) / 2 }
+        : alignment === 'right'
+          ? { x: reference.x + reference.width - layer.width }
+          : alignment === 'top'
+            ? { y: reference.y }
+            : alignment === 'middle'
+              ? { y: reference.y + (reference.height - layer.height) / 2 }
+              : { y: reference.y + reference.height - layer.height }
+
+  return updateLayer(state, layerId, getClampedLayerPatch(state, layer, patch))
+}
 
 export const updateLayer = (
   state: EditorState,

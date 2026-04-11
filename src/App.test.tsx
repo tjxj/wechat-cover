@@ -204,6 +204,38 @@ describe('App', () => {
     expect(textLayer).toHaveStyle({ textAlign: 'center' })
   })
 
+  it('aligns the selected layer to another reference layer from the panel', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    const sourceLayer = screen.getByLabelText('文字图层 3')
+    await user.click(sourceLayer)
+    await user.click(screen.getByRole('button', { name: '图层' }))
+    await user.selectOptions(
+      screen.getByLabelText('对齐参考'),
+      screen.getByRole('option', { name: '文字图层 2' }),
+    )
+    await user.click(screen.getByRole('button', { name: '参考右边对齐' }))
+
+    expect(sourceLayer).toHaveStyle({ left: '516px' })
+  })
+
+  it('applies text emphasis controls from the style panel', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    const textLayer = screen.getByLabelText('文字图层 1')
+
+    await user.click(screen.getByRole('button', { name: '常规' }))
+    await user.click(screen.getByRole('button', { name: '斜体' }))
+    await user.click(screen.getByRole('button', { name: '下划线' }))
+    await user.click(screen.getByRole('button', { name: '删除线' }))
+
+    expect(textLayer).toHaveStyle({ fontWeight: '500' })
+    expect(textLayer).toHaveStyle({ fontStyle: 'italic' })
+    expect(textLayer.style.textDecoration).toBe('underline line-through')
+  })
+
   it('shows a resize handle for selected text layers', async () => {
     const user = userEvent.setup()
     render(<App />)

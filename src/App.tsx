@@ -16,6 +16,8 @@ import './App.css'
 import {
   addImageLayer,
   addTextBlock,
+  alignLayerToCanvas,
+  alignLayerToReference,
   applyCustomTemplate,
   BACKGROUND_PRESETS,
   bringLayerToFront,
@@ -46,6 +48,7 @@ import {
   type FontId,
   type ImageLayer,
   type ImageShape,
+  type LayerAlignment,
   type SizeId,
   type TextAlign,
   type TextLayer,
@@ -151,6 +154,7 @@ function App() {
   const [activeInspectorTab, setActiveInspectorTab] = useState<
     'style' | 'layer' | 'background'
   >('style')
+  const [alignmentReferenceId, setAlignmentReferenceId] = useState<string>('')
   const [exporting, setExporting] = useState(false)
   const [templateDraft, setTemplateDraft] = useState('')
   const [statusMessage, setStatusMessage] = useState(
@@ -224,39 +228,31 @@ function App() {
     handleLayerUpdate({ textAlign })
   }
 
-  const handleAlignLayerToCanvas = (
-    alignment: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom',
-  ) => {
+  const handleAlignLayerToCanvas = (alignment: LayerAlignment) => {
     if (!selectedLayer) {
       return
     }
 
-    const patch =
-      alignment === 'left'
-        ? { x: 24 }
-        : alignment === 'center'
-          ? { x: Number(((state.size.width - selectedLayer.width) / 2).toFixed(1)) }
-          : alignment === 'right'
-            ? {
-                x: Number(
-                  (state.size.width - selectedLayer.width - 24).toFixed(1),
-                ),
-              }
-            : alignment === 'top'
-              ? { y: 24 }
-              : alignment === 'middle'
-                ? {
-                    y: Number(
-                      ((state.size.height - selectedLayer.height) / 2).toFixed(1),
-                    ),
-                  }
-                : {
-                    y: Number(
-                      (state.size.height - selectedLayer.height - 24).toFixed(1),
-                    ),
-                  }
+    endHistoryTransaction()
+    setEditingTextLayerId(null)
+    setState((current) => alignLayerToCanvas(current, selectedLayer.id, alignment))
+  }
 
-    handleLayerUpdate(patch)
+  const handleAlignLayerToReference = (alignment: LayerAlignment) => {
+    if (!selectedLayer || !alignmentReferenceId) {
+      return
+    }
+
+    endHistoryTransaction()
+    setEditingTextLayerId(null)
+    setState((current) =>
+      alignLayerToReference(
+        current,
+        selectedLayer.id,
+        alignmentReferenceId,
+        alignment,
+      ),
+    )
   }
 
   const templateSelectValue = useMemo(() => {
@@ -787,6 +783,42 @@ function App() {
 
   const textLayers = state.layers.filter(isTextLayer)
   const imageLayers = state.layers.filter(isImageLayer)
+  const alignmentReferenceOptions = useMemo(
+    () =>
+      selectedLayer
+        ? state.layers
+            .filter((layer) => layer.id !== selectedLayer.id)
+            .map((layer) => ({
+              value: layer.id,
+              label: isTextLayer(layer)
+                ? `文字图层 ${textLayers.findIndex((item) => item.id === layer.id) + 1}`
+                : `图片图层 ${imageLayers.findIndex((item) => item.id === layer.id) + 1}`,
+            }))
+        : [],
+    [imageLayers, selectedLayer, state.layers, textLayers],
+  )
+
+  useEffect(() => {
+    if (!selectedLayer) {
+      if (alignmentReferenceId) {
+        setAlignmentReferenceId('')
+      }
+      return
+    }
+
+    const nextReferenceId = alignmentReferenceOptions[0]?.value ?? ''
+
+    if (
+      alignmentReferenceId === selectedLayer.id ||
+      !alignmentReferenceOptions.some(
+        (option) => option.value === alignmentReferenceId,
+      )
+    ) {
+      if (alignmentReferenceId !== nextReferenceId) {
+        setAlignmentReferenceId(nextReferenceId)
+      }
+    }
+  }, [alignmentReferenceId, alignmentReferenceOptions, selectedLayer])
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -1132,6 +1164,13 @@ function App() {
                         fontFamily: FONT_LOOKUP[layer.fontId],
                         textAlign: layer.textAlign,
                         fontWeight: layer.weight,
+                        fontStyle: layer.italic ? 'italic' : 'normal',
+                        textDecoration: [
+                          layer.underline ? 'underline' : '',
+                          layer.strikethrough ? 'line-through' : '',
+                        ]
+                          .filter(Boolean)
+                          .join(' '),
                         WebkitTextStroke:
                           layer.strokeWidth > 0
                             ? `${layer.strokeWidth}px ${layer.strokeColor}`
@@ -1393,6 +1432,65 @@ function App() {
                           ))}
                         </select>
                       </label>
+                    </div>
+
+                    <div className="panel-subsection">
+                      <span className="subtle-label">字重</span>
+                      <div className="icon-group">
+                        {([
+                          ['常规', 500],
+                          ['中黑', 700],
+                          ['加粗', 800],
+                        ] as const).map(([label, weight]) => (
+                          <button
+                            key={label}
+                            type="button"
+                            className={selectedTextLayer.weight === weight ? 'is-active' : ''}
+                            onClick={() => handleLayerUpdate({ weight })}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="panel-subsection">
+                      <span className="subtle-label">文字样式</span>
+                      <div className="icon-group">
+                        <button
+                          type="button"
+                          className={selectedTextLayer.italic ? 'is-active' : ''}
+                          onClick={() =>
+                            handleLayerUpdate({
+                              italic: !selectedTextLayer.italic,
+                            })
+                          }
+                        >
+                          斜体
+                        </button>
+                        <button
+                          type="button"
+                          className={selectedTextLayer.underline ? 'is-active' : ''}
+                          onClick={() =>
+                            handleLayerUpdate({
+                              underline: !selectedTextLayer.underline,
+                            })
+                          }
+                        >
+                          下划线
+                        </button>
+                        <button
+                          type="button"
+                          className={selectedTextLayer.strikethrough ? 'is-active' : ''}
+                          onClick={() =>
+                            handleLayerUpdate({
+                              strikethrough: !selectedTextLayer.strikethrough,
+                            })
+                          }
+                        >
+                          删除线
+                        </button>
+                      </div>
                     </div>
 
                     <div className="panel-subsection">
@@ -1816,6 +1914,72 @@ function App() {
                         </button>
                       </div>
                     </div>
+
+                    {alignmentReferenceOptions.length > 0 && (
+                      <div className="panel-subsection">
+                        <span className="subtle-label">对齐其它元素</span>
+                        <label className="field">
+                          <span>参考图层</span>
+                          <select
+                            aria-label="对齐参考"
+                            value={alignmentReferenceId}
+                            onChange={(event) =>
+                              setAlignmentReferenceId(event.target.value)
+                            }
+                          >
+                            {alignmentReferenceOptions.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <div className="icon-group">
+                          <button
+                            type="button"
+                            aria-label="参考左边对齐"
+                            onClick={() => handleAlignLayerToReference('left')}
+                          >
+                            左边对齐
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="参考水平居中"
+                            onClick={() => handleAlignLayerToReference('center')}
+                          >
+                            水平居中
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="参考右边对齐"
+                            onClick={() => handleAlignLayerToReference('right')}
+                          >
+                            右边对齐
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="参考上边对齐"
+                            onClick={() => handleAlignLayerToReference('top')}
+                          >
+                            上边对齐
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="参考垂直居中"
+                            onClick={() => handleAlignLayerToReference('middle')}
+                          >
+                            垂直居中
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="参考下边对齐"
+                            onClick={() => handleAlignLayerToReference('bottom')}
+                          >
+                            下边对齐
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </section>
                 )}
 
